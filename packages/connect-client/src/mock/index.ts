@@ -166,6 +166,8 @@ export class MockConnectClient implements ConnectClient {
       case 'product.stock_changed': {
         const idx = this._products.findIndex((p) => p.id === event.productId);
         if (idx !== -1) {
+          // The second `if (existing)` is required by `noUncheckedIndexedAccess`
+          // in our tsconfig; array index access is typed as `T | undefined`.
           const existing = this._products[idx];
           if (existing) {
             this._products[idx] = {
