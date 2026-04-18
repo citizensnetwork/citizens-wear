@@ -54,7 +54,7 @@ async function runSearch(query: string): Promise<SearchResults> {
     store.posts.searchByText(query, { limit: PER_KIND_LIMIT }),
     tag
       ? store.posts.listByHashtag(tag, { limit: PER_KIND_LIMIT })
-      : Promise.resolve(null as FeedPage | null),
+      : Promise.resolve<FeedPage | null>(null),
   ]);
 
   return { users, brands, products, posts, hashtag };
