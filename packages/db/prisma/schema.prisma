@@ -38,6 +38,11 @@ model User {
   followers    Follow[]  @relation("FollowTarget")
   following    Follow[]  @relation("FollowActor")
   ownedBrands  Brand[]   @relation("BrandOwner")
+  authoredPosts Post[]   @relation("PostAuthor")
+  likes        Like[]
+  comments     Comment[]
+  commentLikes CommentLike[]
+  saveCollections SaveCollection[]
 }
 
 /// Mirror of a Citizens Connect brand.
@@ -53,6 +58,7 @@ model Brand {
   owner        User     @relation("BrandOwner", fields: [ownerUserId], references: [id])
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  posts        Post[]   @relation("PostBrand")
 }
 
 /// Wear-specific profile state attached to a `User`.
@@ -95,4 +101,112 @@ model UserSettings {
   profileVisibility  ProfileVisibility @default(PUBLIC)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Phase 4 — posts, media, likes, comments, saves.
+// ────────────────────────────────────────────────────────────────────────
+
+/// Social post authored by a citizen, optionally published *as* a brand.
+/// `taggedProductIds` is a denormalised array of Connect product ids so
+/// the brand composer can tag drops without a join table.
+model Post {
+  id                String   @id
+  authorId          String
+  author            User     @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  brandId           String?
+  brand             Brand?   @relation("PostBrand", fields: [brandId], references: [id], onDelete: SetNull)
+  body              String
+  taggedProductIds  String[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  media             PostMedia[]
+  likes             Like[]
+  comments          Comment[]
+  saves             SavedPost[]
+
+  @@index([authorId, createdAt(sort: Desc)])
+  @@index([brandId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+}
+
+enum PostMediaKind {
+  IMAGE
+  VIDEO
+}
+
+model PostMedia {
+  id         String        @id
+  postId     String
+  post       Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  url        String
+  kind       PostMediaKind @default(IMAGE)
+  altText    String?
+  orderIndex Int           @default(0)
+
+  @@index([postId, orderIndex])
+}
+
+model Like {
+  postId    String
+  userId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([postId, userId])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model Comment {
+  id               String    @id
+  postId           String
+  post             Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId         String
+  author           User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parentCommentId  String?
+  parent           Comment?  @relation("CommentThread", fields: [parentCommentId], references: [id], onDelete: SetNull)
+  replies          Comment[] @relation("CommentThread")
+  body             String
+  createdAt        DateTime  @default(now())
+
+  likes            CommentLike[]
+
+  @@index([postId, createdAt])
+  @@index([authorId, createdAt(sort: Desc)])
+}
+
+model CommentLike {
+  commentId String
+  userId    String
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([commentId, userId])
+}
+
+/// A user-owned save collection. Every user gets an implicit "default"
+/// collection on first save; named collections land with Phase 7.
+model SaveCollection {
+  id        String       @id
+  ownerId   String
+  owner     User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime     @default(now())
+  posts     SavedPost[]
+
+  @@unique([ownerId, name])
+}
+
+model SavedPost {
+  collectionId String
+  postId       String
+  collection   SaveCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  post         Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt    DateTime       @default(now())
+
+  @@id([collectionId, postId])
+  @@index([postId])
 }

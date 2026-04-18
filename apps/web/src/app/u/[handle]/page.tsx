@@ -60,6 +60,14 @@ export default async function UserProfilePage({ params }: Params) {
               ) : null}
             </div>
             <p className="mt-1 text-ink-soft">@{user.handle}</p>
+            <p className="mt-1 text-xs">
+              <Link
+                href={{ pathname: '/u/[handle]/activity', query: { handle: user.handle } }}
+                className="underline decoration-gold underline-offset-2 hover:text-ink"
+              >
+                View activity
+              </Link>
+            </p>
           </div>
           {!viewingOwnProfile && session ? (
             <form action={isFollowing ? unfollowUser : followUser}>

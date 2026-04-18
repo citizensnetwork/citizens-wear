@@ -30,20 +30,21 @@
 
 **🧭 ARCH-GATE 1** — ADR-0003. Review data model, auth boundaries, Connect contract sufficiency, token system, a11y baseline, test coverage ≥70%.
 
-### Phase 3 — Real Citizens Connect wiring
+### Phase 3 — Real Citizens Connect wiring _(landed — ADR-0004)_
 
-- Replace `MockConnectClient` with HTTP/OIDC client (or keep mock + add webhook receiver if Connect is still unavailable).
-- SSO parity across Wear and Connect.
-- Idempotent, replay-safe webhook receiver.
+- `HttpConnectClient` implements the `ConnectClient` contract against a live HTTP service; `createConnectClient()` factory selects mock vs. live from `CONNECT_MODE` / `CONNECT_BASE_URL` / `CONNECT_API_KEY`.
+- SSO parity: Auth.js-shaped `/api/auth/callback/connect` route completes a Connect-issued token into the Wear session cookie; `/sign-in` mock form remains for local dev.
+- Idempotent, replay-safe webhook receiver at `/api/connect/webhook` (HMAC-SHA256 signature, ≤5-min skew, `x-connect-delivery-id` dedupe) that fans into `ConnectClient.events`.
 
-### Phase 4 — Posts & the feed
+### Phase 4 — Posts & the feed _(landed — ADR-0004)_
 
-- `Post`, `PostMedia`, `Like`, `Comment`, `CommentLike`, `SaveCollection`.
-- Brand post composer with product tagging.
-- Chronological feed; "For You" ranker stub behind a feature flag.
-- Post detail, threaded comments, activity tab.
+- `@citizens-wear/db` extended with `Post`, `PostMedia`, `Like`, `Comment`, `CommentLike`, `SaveCollection`, `SavedPost` (schema + TS contract + memory impl + contract tests).
+- `/compose` brand post composer with opt-in "publish as brand" and product tagging scoped to that brand.
+- `/feed` chronological feed; "For You" ranker stub behind the `CW_FOR_YOU_RANKER` feature flag (freshness + follow boost).
+- `/p/[id]` post detail with threaded comments, comment likes, saves.
+- `/u/[handle]/activity` activity tab aggregating posts, likes, comments, and saves.
 
-**🧭 ARCH-GATE 2** — ADR-0004. Feed query performance, N+1 audit, image pipeline, moderation hooks, Lighthouse ≥ 90, Playwright e2e green.
+**🧭 ARCH-GATE 2** — ADR-0004 (this repo). Feed query plan, N+1 audit, image pipeline, moderation hooks, Connect live/mock parity, webhook contract. Lighthouse ≥ 90 and Playwright e2e land with Phase 5 when the discovery surfaces give them a meaningful baseline to measure against.
 
 ### Phase 5 — Discovery, search, brand catalog
 
