@@ -95,12 +95,24 @@ export interface BrandDirectory {
   getBySlug(slug: string): Promise<ConnectBrand | null>;
   listAll(params?: PageParams): Promise<Page<ConnectBrand>>;
   listForOwner(userId: ConnectId): Promise<readonly ConnectBrand[]>;
+  /**
+   * Phase 5 — discovery surface. Matches against `name`, `slug`, and
+   * `tagline`. The query is case-insensitive and trimmed; an empty query
+   * returns the same shape as `listAll`.
+   */
+  search(query: string, params?: PageParams): Promise<Page<ConnectBrand>>;
 }
 
 /** Read-through catalog of brand products (stock, pricing, imagery). */
 export interface ProductCatalog {
   getById(id: ConnectId): Promise<ConnectProduct | null>;
   listForBrand(brandId: ConnectId, params?: PageParams): Promise<Page<ConnectProduct>>;
+  /**
+   * Phase 5 — discovery surface. Matches against `title` and `description`.
+   * `sold_out` products are still returned so they remain discoverable
+   * (callers may choose to dim them in the UI).
+   */
+  search(query: string, params?: PageParams): Promise<Page<ConnectProduct>>;
 }
 
 /** Domain events Connect may emit into Wear (Phase 3 wires this to webhooks). */

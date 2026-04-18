@@ -80,6 +80,16 @@ describe('BrandDirectory', () => {
     const page = await client.brands.listAll();
     expect(page.items).toHaveLength(fixtureBrands.length);
   });
+
+  it('search matches name, slug, and tagline (case-insensitive)', async () => {
+    const client = makeClient();
+    expect((await client.brands.search('SALT')).items.map((b) => b.id)).toEqual(['brd_001']);
+    expect((await client.brands.search('cornerstone-co')).items.map((b) => b.id)).toEqual([
+      'brd_002',
+    ]);
+    expect((await client.brands.search('rock')).items.map((b) => b.id)).toEqual(['brd_002']);
+    expect((await client.brands.search('')).items).toHaveLength(fixtureBrands.length);
+  });
 });
 
 describe('ProductCatalog', () => {
@@ -92,6 +102,13 @@ describe('ProductCatalog', () => {
   it('returns null for unknown products', async () => {
     const client = makeClient();
     expect(await client.products.getById('missing')).toBeNull();
+  });
+
+  it('search matches title and description (case-insensitive)', async () => {
+    const client = makeClient();
+    expect((await client.products.search('hoodie')).items.map((p) => p.id)).toEqual(['prd_002']);
+    expect((await client.products.search('cap')).items.map((p) => p.id)).toEqual(['prd_003']);
+    expect((await client.products.search('cotton')).items.map((p) => p.id)).toEqual(['prd_001']);
   });
 });
 

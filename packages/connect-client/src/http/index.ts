@@ -111,6 +111,10 @@ export class HttpConnectClient implements ConnectClient {
         }),
       listForOwner: async (userId) =>
         this._request<readonly ConnectBrand[]>(`/v1/users/${encodeURIComponent(userId)}/brands`),
+      search: async (query, params) =>
+        this._request<Page<ConnectBrand>>('/v1/brands/search', {
+          query: { q: query, cursor: params?.cursor, limit: params?.limit },
+        }),
     };
 
     this.products = {
@@ -119,6 +123,10 @@ export class HttpConnectClient implements ConnectClient {
       listForBrand: async (brandId, params) =>
         this._request<Page<ConnectProduct>>(`/v1/brands/${encodeURIComponent(brandId)}/products`, {
           query: { cursor: params?.cursor, limit: params?.limit },
+        }),
+      search: async (query, params) =>
+        this._request<Page<ConnectProduct>>('/v1/products/search', {
+          query: { q: query, cursor: params?.cursor, limit: params?.limit },
         }),
     };
 

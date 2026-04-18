@@ -3,7 +3,6 @@ import type {
   CommentLikeEdge,
   CommentRepo,
   ConnectId,
-  CreatePostInput,
   FeedPage,
   FeedPageParams,
   FollowCounts,
@@ -20,10 +19,12 @@ import type {
   SaveCollection,
   SaveRepo,
   SettingsRepo,
+  TrendingHashtag,
   UserSettings,
   WearStore,
 } from './contract';
 import { WearStoreError } from './contract';
+import { extractHashtags, normaliseHashtag } from './hashtags';
 
 /**
  * In-memory implementation of `WearStore`.
@@ -254,6 +255,40 @@ export class MemoryWearStore implements WearStore {
           params,
           /*alreadySorted*/ true,
         );
+      },
+      searchByText: async (query, params) => {
+        const q = query.trim().toLowerCase();
+        if (!q) return this._paginate([], params);
+        const matches = [...this._posts.values()].filter((p) => p.body.toLowerCase().includes(q));
+        return this._paginate(matches, params);
+      },
+      listByHashtag: async (tag, params) => {
+        const needle = normaliseHashtag(tag);
+        if (!needle) return this._paginate([], params);
+        const matches = [...this._posts.values()].filter((p) =>
+          extractHashtags(p.body).includes(needle),
+        );
+        return this._paginate(matches, params);
+      },
+      trendingHashtags: async (options) => {
+        const limit = Math.max(1, Math.min(50, options?.limit ?? 10));
+        const windowMs = options?.windowMs ?? 1000 * 60 * 60 * 24 * 14;
+        const nowMs = this._now().getTime();
+        const counts = new Map<string, { count: number; score: number }>();
+        for (const p of this._posts.values()) {
+          const ageMs = nowMs - Date.parse(p.createdAt);
+          const freshness = ageMs <= windowMs ? 1 - ageMs / windowMs : 0;
+          for (const tag of extractHashtags(p.body)) {
+            const current = counts.get(tag) ?? { count: 0, score: 0 };
+            current.count += 1;
+            current.score += 1 + freshness;
+            counts.set(tag, current);
+          }
+        }
+        const ranked: TrendingHashtag[] = [...counts.entries()]
+          .map(([tag, v]) => ({ tag, postCount: v.count, score: v.score }))
+          .sort((a, b) => b.score - a.score || a.tag.localeCompare(b.tag));
+        return ranked.slice(0, limit);
       },
     };
 
