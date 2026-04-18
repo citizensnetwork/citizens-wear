@@ -25,6 +25,9 @@ export function PageShell({
           </span>
         </Link>
         <nav className="flex items-center gap-4 text-sm text-ink-soft">
+          <Link href="/feed" className="hover:text-ink">
+            Feed
+          </Link>
           <Link
             href="/api/connect/status"
             className="underline decoration-gold decoration-1 underline-offset-4 hover:text-ink"

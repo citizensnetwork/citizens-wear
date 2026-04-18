@@ -144,7 +144,11 @@ export function verifyWebhookSignature(opts: VerifyOptions): void {
   const nowSec = Math.floor((opts.now?.() ?? new Date()).getTime() / 1000);
   const skew = Math.abs(nowSec - parsed.t);
   if (skew > (opts.maxSkewSeconds ?? MAX_SKEW_SECONDS)) {
-    throw new ConnectError('expired_signature', 'Webhook signature is outside the skew window.', 401);
+    throw new ConnectError(
+      'expired_signature',
+      'Webhook signature is outside the skew window.',
+      401,
+    );
   }
   const expected = createHmac('sha256', opts.secret)
     .update(`${parsed.t}.${opts.rawBody}`)

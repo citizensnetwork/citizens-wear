@@ -43,8 +43,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const deliveryId =
-    request.headers.get(CONNECT_DELIVERY_ID_HEADER) ??
-    safeDeliveryIdFromBody(rawBody);
+    request.headers.get(CONNECT_DELIVERY_ID_HEADER) ?? safeDeliveryIdFromBody(rawBody);
   if (!deliveryId) {
     return NextResponse.json(
       { ok: false, code: 'missing_delivery_id', message: 'Missing delivery id.' },
@@ -85,8 +84,5 @@ function errorResponse(error: unknown): Response {
     );
   }
   const message = error instanceof Error ? error.message : 'Unknown error';
-  return NextResponse.json(
-    { ok: false, code: 'internal_error', message },
-    { status: 500 },
-  );
+  return NextResponse.json({ ok: false, code: 'internal_error', message }, { status: 500 });
 }

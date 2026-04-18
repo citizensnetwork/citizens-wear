@@ -1,10 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  ConnectError,
-  HttpConnectClient,
-  createConnectClient,
-  fixtureUsers,
-} from '../src/index';
+import { ConnectError, HttpConnectClient, createConnectClient, fixtureUsers } from '../src/index';
 
 function makeFetch(
   handlers: Array<(url: string, init: RequestInit) => Response | Promise<Response>>,

@@ -117,10 +117,9 @@ export class HttpConnectClient implements ConnectClient {
       getById: async (id) =>
         this._requestNullable<ConnectProduct>(`/v1/products/${encodeURIComponent(id)}`),
       listForBrand: async (brandId, params) =>
-        this._request<Page<ConnectProduct>>(
-          `/v1/brands/${encodeURIComponent(brandId)}/products`,
-          { query: { cursor: params?.cursor, limit: params?.limit } },
-        ),
+        this._request<Page<ConnectProduct>>(`/v1/brands/${encodeURIComponent(brandId)}/products`, {
+          query: { cursor: params?.cursor, limit: params?.limit },
+        }),
     };
 
     this.events = {

@@ -45,9 +45,7 @@ describe('signWebhookBody / verifyWebhookSignature', () => {
         signatureHeader: sig,
         now: () => new Date((t + 10 * 60) * 1000),
       }),
-    ).toThrow(
-      expect.objectContaining({ code: 'expired_signature' }) as unknown as Error,
-    );
+    ).toThrow(expect.objectContaining({ code: 'expired_signature' }) as unknown as Error);
   });
 
   it('rejects a malformed signature header', () => {
@@ -69,9 +67,7 @@ describe('signWebhookBody / verifyWebhookSignature', () => {
         signatureHeader: null,
         now: () => new Date(),
       }),
-    ).toThrow(
-      expect.objectContaining({ code: 'missing_signature' }) as unknown as Error,
-    );
+    ).toThrow(expect.objectContaining({ code: 'missing_signature' }) as unknown as Error);
   });
 
   it('rejects when the secret is empty (misconfigured)', () => {
@@ -82,9 +78,7 @@ describe('signWebhookBody / verifyWebhookSignature', () => {
         signatureHeader: signWebhookBody('x', 'body', 1),
         now: () => new Date(1000),
       }),
-    ).toThrow(
-      expect.objectContaining({ code: 'misconfigured' }) as unknown as Error,
-    );
+    ).toThrow(expect.objectContaining({ code: 'misconfigured' }) as unknown as Error);
   });
 });
 
@@ -114,9 +108,7 @@ describe('parseWebhookPayload', () => {
       parseWebhookPayload({
         event: { type: 'user.updated', user: {} },
       }),
-    ).toThrow(
-      expect.objectContaining({ code: 'invalid_payload' }) as unknown as Error,
-    );
+    ).toThrow(expect.objectContaining({ code: 'invalid_payload' }) as unknown as Error);
   });
 });
 
