@@ -130,6 +130,24 @@ describe('HttpConnectClient', () => {
     });
     expect(handler).toHaveBeenCalledTimes(1);
   });
+
+  it('searches brands and products against /v1/{brands,products}/search', async () => {
+    const client = new HttpConnectClient({
+      baseUrl: 'https://connect.example',
+      fetch: makeFetch([
+        (url) => {
+          expect(url).toContain('/v1/brands/search?q=salt&limit=5');
+          return jsonResponse(200, { items: [], nextCursor: null });
+        },
+        (url) => {
+          expect(url).toContain('/v1/products/search?q=hoodie');
+          return jsonResponse(200, { items: [], nextCursor: null });
+        },
+      ]),
+    });
+    await client.brands.search('salt', { limit: 5 });
+    await client.products.search('hoodie');
+  });
 });
 
 describe('createConnectClient', () => {

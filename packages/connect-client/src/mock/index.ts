@@ -116,6 +116,18 @@ export class MockConnectClient implements ConnectClient {
         this._brands.find((b) => b.slug.toLowerCase() === slug.toLowerCase()) ?? null,
       listAll: async (params) => paginate(this._brands, params),
       listForOwner: async (userId) => this._brands.filter((b) => b.ownerUserId === userId),
+      search: async (query, params) => {
+        const q = query.trim().toLowerCase();
+        const matches = q
+          ? this._brands.filter(
+              (b) =>
+                b.name.toLowerCase().includes(q) ||
+                b.slug.toLowerCase().includes(q) ||
+                (b.tagline ?? '').toLowerCase().includes(q),
+            )
+          : this._brands;
+        return paginate(matches, params);
+      },
     };
 
     this.products = {
@@ -125,6 +137,15 @@ export class MockConnectClient implements ConnectClient {
           this._products.filter((p) => p.brandId === brandId),
           params,
         ),
+      search: async (query, params) => {
+        const q = query.trim().toLowerCase();
+        const matches = q
+          ? this._products.filter(
+              (p) => p.title.toLowerCase().includes(q) || p.description.toLowerCase().includes(q),
+            )
+          : this._products;
+        return paginate(matches, params);
+      },
     };
 
     this.events = {

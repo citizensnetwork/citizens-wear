@@ -26,8 +26,14 @@ export default async function HomePage() {
           bringing the Kingdom to where brands and their followers meet.
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-3">
+          <Link
+            href="/explore"
+            className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-paper hover:bg-ink-soft"
+          >
+            Explore Citizens Wear →
+          </Link>
           <span className="inline-flex items-center rounded-md border border-border bg-paper-soft px-3 py-1 text-xs uppercase tracking-wide text-ink-soft">
-            Phase 2 · Identity, profiles, follow graph
+            Phase 5 · Discovery, search, brand catalog
           </span>
           <span className="inline-flex items-center rounded-md bg-gold-muted px-3 py-1 text-xs uppercase tracking-wide text-gold-deep">
             Mock Connect

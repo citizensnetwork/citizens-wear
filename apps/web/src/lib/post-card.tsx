@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Fragment, type ReactNode } from 'react';
 import type { ConnectBrand, ConnectUser } from '@citizens-wear/connect-client';
 import type { PostWithMedia } from '@citizens-wear/db';
 import { likePost, savePost, unlikePost } from './actions';
@@ -7,6 +8,11 @@ import { likePost, savePost, unlikePost } from './actions';
  * Compact post card used by the feed, profile pages, and post detail's
  * "related" strip. Server-rendered; interactive bits are plain HTML forms
  * bound to the Phase 4 server actions.
+ *
+ * Phase 5 adds inline hashtag linkification — `#kingdom` becomes a link to
+ * `/h/kingdom`. We rebuild the body as a sequence of plain-text and
+ * `<Link>` nodes; React escapes the text segments so this remains XSS-safe
+ * even though we're parsing untrusted user input.
  */
 export interface PostCardProps {
   readonly entry: PostWithMedia;
@@ -17,6 +23,36 @@ export interface PostCardProps {
   readonly isLiked: boolean;
   readonly isSaved: boolean;
   readonly viewerSignedIn: boolean;
+}
+
+const HASHTAG_SPLIT_RE = /(?<=^|[^\p{L}\p{N}_])#[\p{L}\p{N}_]{1,64}/gu;
+
+function renderBody(body: string): ReactNode[] {
+  const out: ReactNode[] = [];
+  let lastIndex = 0;
+  let key = 0;
+  for (const match of body.matchAll(HASHTAG_SPLIT_RE)) {
+    const start = match.index ?? 0;
+    if (start > lastIndex) {
+      out.push(<Fragment key={`t${key++}`}>{body.slice(lastIndex, start)}</Fragment>);
+    }
+    const token = match[0];
+    const tag = token.slice(1).toLowerCase();
+    out.push(
+      <Link
+        key={`h${key++}`}
+        href={{ pathname: '/h/[tag]', query: { tag } }}
+        className="text-ink underline decoration-gold underline-offset-2 hover:text-ink-soft"
+      >
+        {token}
+      </Link>,
+    );
+    lastIndex = start + token.length;
+  }
+  if (lastIndex < body.length) {
+    out.push(<Fragment key={`t${key++}`}>{body.slice(lastIndex)}</Fragment>);
+  }
+  return out;
 }
 
 export function PostCard({
@@ -65,13 +101,17 @@ export function PostCard({
       </header>
 
       <div className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink">
+        {renderBody(post.body)}
+      </div>
+
+      <p className="mt-2 text-xs">
         <Link
           href={{ pathname: '/p/[id]', query: { id: post.id } }}
-          className="hover:text-ink-soft"
+          className="text-ink-soft underline decoration-gold underline-offset-2 hover:text-ink"
         >
-          {post.body}
+          Open post →
         </Link>
-      </div>
+      </p>
 
       {media.length > 0 ? (
         <ul className="mt-3 grid grid-cols-2 gap-2">

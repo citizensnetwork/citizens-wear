@@ -46,9 +46,15 @@
 
 **🧭 ARCH-GATE 2** — ADR-0004 (this repo). Feed query plan, N+1 audit, image pipeline, moderation hooks, Connect live/mock parity, webhook contract. Lighthouse ≥ 90 and Playwright e2e land with Phase 5 when the discovery surfaces give them a meaningful baseline to measure against.
 
-### Phase 5 — Discovery, search, brand catalog
+### Phase 5 — Discovery, search, brand catalog _(landed — ADR-0005)_
 
-- Explore page, search (users/brands/hashtags/products), brand "Shop" tab auto-populated from Connect.
+- Connect contract gains `BrandDirectory.search` and `ProductCatalog.search`; `MockConnectClient` and `HttpConnectClient` both implement, with contract tests for each.
+- `@citizens-wear/db` extends `PostRepo` with `searchByText`, `listByHashtag`, and `trendingHashtags`, plus a shared Unicode-aware `extractHashtags` / `normaliseHashtag` helper module.
+- `/explore` discovery hub (trending hashtags, featured brands, suggested citizens, fresh drops, from-the-feed strip).
+- `/search?q=…&kind=…` unified search across citizens / brands / hashtags / posts / drops; query length capped, `kind` validated as a closed enum.
+- `/h/[tag]` hashtag feed; `PostCard` linkifies hashtags with React-escaped text segments (XSS-safe).
+- Brand profile gains Drops + Posts tabs; product descriptions surfaced.
+- `PageShell` adds Explore link + header search box that works without JavaScript.
 
 ### Phase 6 — Stories & DMs
 

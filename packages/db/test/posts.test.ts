@@ -224,3 +224,66 @@ describe('SaveRepo', () => {
     );
   });
 });
+
+describe('PostRepo discovery (Phase 5)', () => {
+  it('searchByText matches case-insensitive substrings, newest first', async () => {
+    const store = makeStore();
+    const { post: a } = await store.posts.create({
+      authorId: 'usr_001',
+      body: 'Wear the Kingdom every day.',
+    });
+    const { post: b } = await store.posts.create({
+      authorId: 'usr_002',
+      body: 'KINGDOM mindset.',
+    });
+    await store.posts.create({ authorId: 'usr_003', body: 'unrelated content' });
+
+    const page = await store.posts.searchByText('kingdom');
+    const ids = page.items.map((i) => i.post.id);
+    expect(ids).toEqual([b.id, a.id]);
+  });
+
+  it('searchByText returns an empty page for blank queries', async () => {
+    const store = makeStore();
+    await store.posts.create({ authorId: 'usr_001', body: 'something' });
+    const page = await store.posts.searchByText('   ');
+    expect(page.items).toEqual([]);
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it('listByHashtag accepts both "tag" and "#tag" and is case-insensitive', async () => {
+    const store = makeStore();
+    const { post: tagged } = await store.posts.create({
+      authorId: 'usr_001',
+      body: 'New drop #Kingdom #SaltAndLight',
+    });
+    await store.posts.create({ authorId: 'usr_002', body: 'no hashtags here' });
+
+    expect((await store.posts.listByHashtag('kingdom')).items.map((i) => i.post.id)).toEqual([
+      tagged.id,
+    ]);
+    expect((await store.posts.listByHashtag('#KINGDOM')).items.map((i) => i.post.id)).toEqual([
+      tagged.id,
+    ]);
+    expect((await store.posts.listByHashtag('saltandlight')).items).toHaveLength(1);
+    expect((await store.posts.listByHashtag('  ')).items).toEqual([]);
+  });
+
+  it('does not match a "#" inside a word as a hashtag', async () => {
+    const store = makeStore();
+    await store.posts.create({ authorId: 'usr_001', body: 'salt#tee not a hashtag' });
+    expect((await store.posts.listByHashtag('tee')).items).toEqual([]);
+  });
+
+  it('trendingHashtags ranks by frequency with a freshness boost', async () => {
+    const store = makeStore();
+    await store.posts.create({ authorId: 'usr_001', body: '#kingdom rules' });
+    await store.posts.create({ authorId: 'usr_001', body: 'more #kingdom love' });
+    await store.posts.create({ authorId: 'usr_002', body: 'a single #salt mention' });
+
+    const trends = await store.posts.trendingHashtags();
+    expect(trends[0]?.tag).toBe('kingdom');
+    expect(trends[0]?.postCount).toBe(2);
+    expect(trends.map((t) => t.tag)).toContain('salt');
+  });
+});

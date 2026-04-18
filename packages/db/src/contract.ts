@@ -177,6 +177,32 @@ export interface PostRepo {
    * this with a real ranking service.
    */
   feedForYou(viewerId: ConnectId, params?: FeedPageParams): Promise<FeedPage>;
+  // Phase 5 — discovery surface.
+  /**
+   * Full-text search across post bodies (case-insensitive substring).
+   * Phase 5 ships an in-memory implementation; Phase 8+ swaps in Postgres
+   * full-text or an external search index without touching callers.
+   */
+  searchByText(query: string, params?: FeedPageParams): Promise<FeedPage>;
+  /**
+   * All posts that mention `tag` (case-insensitive, with or without a
+   * leading `#`). Newest first.
+   */
+  listByHashtag(tag: string, params?: FeedPageParams): Promise<FeedPage>;
+  /**
+   * Trending hashtags, scored by post count with a freshness boost over
+   * the last `windowMs` (default 14 days). Returns at most `limit` tags.
+   */
+  trendingHashtags(options?: {
+    readonly limit?: number;
+    readonly windowMs?: number;
+  }): Promise<readonly TrendingHashtag[]>;
+}
+
+export interface TrendingHashtag {
+  readonly tag: string;
+  readonly postCount: number;
+  readonly score: number;
 }
 
 /** Repository for post and comment likes. */
