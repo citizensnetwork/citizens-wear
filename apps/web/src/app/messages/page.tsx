@@ -91,8 +91,7 @@ export default async function MessagesIndexPage({ searchParams }: SearchParams) 
             {enriched.map(({ summary, otherUsers }) => {
               const title =
                 summary.conversation.kind === 'group'
-                  ? (summary.conversation.name ??
-                    otherUsers.map((u) => `@${u.handle}`).join(', '))
+                  ? (summary.conversation.name ?? otherUsers.map((u) => `@${u.handle}`).join(', '))
                   : (otherUsers[0]?.displayName ?? otherUsers[0]?.handle ?? 'Direct message');
               const subtitle =
                 summary.conversation.kind === 'group'

@@ -48,7 +48,7 @@ Reasons:
   Posts do not. Mixing the two would muddy `PostRepo` and force every
   feed query to filter on a discriminator column.
 - Reactions on stories are a fixed five-emoji enum (`amen | love |
-  fire | pray | crown`) — distinct from the open numeric like count on
+fire | pray | crown`) — distinct from the open numeric like count on
   posts — so a separate `StoryReaction` table keeps the post-likes
   semantics clean.
 
