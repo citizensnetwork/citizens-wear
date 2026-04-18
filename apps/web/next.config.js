@@ -2,9 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@citizens-wear/ui', '@citizens-wear/connect-client', '@citizens-wear/db'],
-  experimental: {
-    typedRoutes: true,
-  },
+  typedRoutes: true,
 };
 
 module.exports = nextConfig;
