@@ -1,0 +1,32 @@
+{
+  "name": "@citizens-wear/connect-client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Citizens Connect integration contract and mock client for Citizens Wear",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./mock": "./src/mock/index.ts",
+    "./fixtures": "./src/fixtures/index.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@citizens-wear/config": "workspace:*",
+    "@typescript-eslint/eslint-plugin": "7.18.0",
+    "@typescript-eslint/parser": "7.18.0",
+    "eslint": "8.57.0",
+    "eslint-config-prettier": "9.1.0",
+    "typescript": "5.5.4",
+    "vitest": "2.0.5"
+  }
+}
