@@ -70,9 +70,9 @@ export async function createPost(formData: FormData): Promise<void> {
   if (!body) return;
 
   const brandSlug = String(formData.get('brandSlug') ?? '').trim();
-  const tagged = String(formData.get('taggedProductIds') ?? '')
-    .split(',')
-    .map((s) => s.trim())
+  const tagged = formData
+    .getAll('taggedProductIds')
+    .map((v) => String(v).trim())
     .filter(Boolean);
 
   const client = getConnectClient();
