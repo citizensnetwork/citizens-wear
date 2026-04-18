@@ -711,6 +711,7 @@ export class MemoryWearStore implements WearStore {
         if (this._isBlockedEither(actorId, otherId)) {
           throw new WearStoreError('forbidden', 'Cannot start a DM with this user.');
         }
+        const wantPair = [actorId, otherId].sort();
         for (const conv of this._conversations.values()) {
           if (conv.kind !== 'direct') continue;
           const members = [...this._convMembers.values()].filter(
@@ -718,20 +719,17 @@ export class MemoryWearStore implements WearStore {
           );
           if (members.length !== 2) continue;
           const ids = members.map((m) => m.userId).sort();
-          if (ids[0] === [actorId, otherId].sort()[0] && ids[1] === [actorId, otherId].sort()[1]) {
+          if (ids[0] === wantPair[0] && ids[1] === wantPair[1]) {
             return conv;
           }
         }
-        const followsActorToOther = this._follows.has(edgeKey(actorId, otherId));
         const followsOtherToActor = this._follows.has(edgeKey(otherId, actorId));
-        // If the recipient already follows the sender, the DM is auto-accepted
-        // on their side. Otherwise it lands in their requests inbox.
+        // The initiator is always accepted on their own side. The recipient
+        // is auto-accepted only if they already follow the sender — otherwise
+        // the conversation lands in their requests inbox.
         const otherState: ConversationRequestState = followsOtherToActor
           ? 'accepted'
           : 'requested';
-        const actorState: ConversationRequestState = followsActorToOther
-          ? 'accepted'
-          : 'accepted';
         const ts = this._now().toISOString();
         const conv: Conversation = {
           id: this._id('cnv'),
@@ -748,7 +746,7 @@ export class MemoryWearStore implements WearStore {
           joinedAt: ts,
           lastReadAt: ts,
           mutedUntil: null,
-          requestState: actorState,
+          requestState: 'accepted',
           role: 'owner',
         });
         this._convMembers.set(memberKey(conv.id, otherId), {
