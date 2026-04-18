@@ -5,12 +5,7 @@ import { getConnectClient } from '@/lib/connect';
 import { getWearStore } from '@/lib/store';
 import { getSession } from '@/lib/session';
 import { PageShell } from '@/lib/shell';
-import {
-  deleteStory,
-  reactToStory,
-  recordStoryView,
-  reportSubject,
-} from '@/lib/actions';
+import { deleteStory, reactToStory, recordStoryView, reportSubject } from '@/lib/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,14 +17,13 @@ interface Params {
   readonly params: Promise<{ readonly id: string }>;
 }
 
-const REACTIONS: readonly { kind: 'amen' | 'love' | 'fire' | 'pray' | 'crown'; label: string }[] =
-  [
-    { kind: 'amen', label: 'Amen' },
-    { kind: 'love', label: 'Love' },
-    { kind: 'fire', label: 'Fire' },
-    { kind: 'pray', label: 'Pray' },
-    { kind: 'crown', label: 'Crown' },
-  ];
+const REACTIONS: readonly { kind: 'amen' | 'love' | 'fire' | 'pray' | 'crown'; label: string }[] = [
+  { kind: 'amen', label: 'Amen' },
+  { kind: 'love', label: 'Love' },
+  { kind: 'fire', label: 'Fire' },
+  { kind: 'pray', label: 'Pray' },
+  { kind: 'crown', label: 'Crown' },
+];
 
 export default async function StoryViewerPage({ params }: Params) {
   const { id } = await params;
@@ -66,16 +60,16 @@ export default async function StoryViewerPage({ params }: Params) {
   // Determine sibling navigation among the author's currently active stories.
   const active = await store.stories.listActiveForViewer(session?.user.id ?? story.authorId);
   const sameAuthor = active.filter((s) => s.authorId === story.authorId);
-  const ordered = [...sameAuthor].sort(
-    (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt),
-  );
+  const ordered = [...sameAuthor].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
   const idx = ordered.findIndex((s) => s.id === story.id);
   const prev = idx > 0 ? ordered[idx - 1] : null;
   const next = idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null;
 
   const isAuthor = session?.user.id === story.authorId;
   const reactions = await store.stories.listReactions(story.id);
-  const viewerCount = isAuthor ? (await store.stories.listViewers(story.id, story.authorId)).length : 0;
+  const viewerCount = isAuthor
+    ? (await store.stories.listViewers(story.id, story.authorId)).length
+    : 0;
 
   return (
     <PageShell session={session}>

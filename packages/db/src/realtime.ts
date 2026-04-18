@@ -19,10 +19,7 @@ import type { ConnectId, IsoDateTime } from './contract';
  *     `event.kind`. Adding a new kind is intentionally a breaking change.
  */
 
-export type RealtimeTopic =
-  | `conv:${string}`
-  | `user:${ConnectId}`
-  | `story:${string}`;
+export type RealtimeTopic = `conv:${string}` | `user:${ConnectId}` | `story:${string}`;
 
 export type RealtimeEvent =
   | {

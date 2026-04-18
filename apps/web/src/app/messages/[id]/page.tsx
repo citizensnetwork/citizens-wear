@@ -111,10 +111,7 @@ export default async function ConversationPage({ params }: Params) {
             const isMe = m.authorId === session.user.id;
             const author = otherUsers.find((u) => u.id === m.authorId);
             return (
-              <li
-                key={m.id}
-                className={isMe ? 'self-end text-right' : 'self-start text-left'}
-              >
+              <li key={m.id} className={isMe ? 'self-end text-right' : 'self-start text-left'}>
                 <div
                   className={
                     isMe
@@ -123,9 +120,7 @@ export default async function ConversationPage({ params }: Params) {
                   }
                 >
                   {!isMe && conv.kind === 'group' ? (
-                    <p className="text-xs text-ink-soft">
-                      @{author?.handle ?? m.authorId}
-                    </p>
+                    <p className="text-xs text-ink-soft">@{author?.handle ?? m.authorId}</p>
                   ) : null}
                   <p className="whitespace-pre-wrap">
                     {m.deletedAt ? <em className="text-ink-soft">(message deleted)</em> : m.body}
@@ -134,9 +129,7 @@ export default async function ConversationPage({ params }: Params) {
                 <div
                   className={`mt-1 flex gap-2 text-[10px] text-ink-soft ${isMe ? 'justify-end' : 'justify-start'}`}
                 >
-                  <time dateTime={m.createdAt}>
-                    {new Date(m.createdAt).toLocaleTimeString()}
-                  </time>
+                  <time dateTime={m.createdAt}>{new Date(m.createdAt).toLocaleTimeString()}</time>
                   {isMe && !m.deletedAt ? (
                     <form action={deleteOwnMessage}>
                       <input type="hidden" name="messageId" value={m.id} />

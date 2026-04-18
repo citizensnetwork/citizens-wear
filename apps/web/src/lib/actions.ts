@@ -179,13 +179,7 @@ export async function savePost(formData: FormData): Promise<void> {
 
 const MAX_STORY_CAPTION = 280;
 const MAX_MESSAGE_BODY = 4000;
-const VALID_REACTIONS: readonly StoryReactionKind[] = [
-  'amen',
-  'love',
-  'fire',
-  'pray',
-  'crown',
-];
+const VALID_REACTIONS: readonly StoryReactionKind[] = ['amen', 'love', 'fire', 'pray', 'crown'];
 const VALID_REPORT_KINDS: readonly ReportSubjectKind[] = [
   'post',
   'comment',

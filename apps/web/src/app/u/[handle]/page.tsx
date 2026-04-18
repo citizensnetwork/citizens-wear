@@ -43,14 +43,13 @@ export default async function UserProfilePage({ params }: Params) {
     client.brands.listForOwner(user.id),
     session ? store.follows.isFollowing(session.user.id, user.id) : Promise.resolve(false),
     store.highlights.listForOwner(user.id),
-    session
-      ? store.blocks.isBlockedEither(session.user.id, user.id)
-      : Promise.resolve(false),
+    session ? store.blocks.isBlockedEither(session.user.id, user.id) : Promise.resolve(false),
   ]);
 
   const viewingOwnProfile = session?.user.id === user.id;
   const isPrivate = profile.visibility === 'private';
-  const hidden = (isPrivate && !viewingOwnProfile && !isFollowing) || (isBlocked && !viewingOwnProfile);
+  const hidden =
+    (isPrivate && !viewingOwnProfile && !isFollowing) || (isBlocked && !viewingOwnProfile);
 
   return (
     <PageShell session={session}>
