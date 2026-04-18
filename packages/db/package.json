@@ -18,7 +18,8 @@
     "build": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@citizens-wear/connect-client": "workspace:*"
@@ -27,9 +28,10 @@
     "@citizens-wear/config": "workspace:*",
     "@typescript-eslint/eslint-plugin": "7.18.0",
     "@typescript-eslint/parser": "7.18.0",
+    "@vitest/coverage-v8": "3.2.4",
     "eslint": "8.57.0",
     "eslint-config-prettier": "9.1.0",
     "typescript": "5.5.4",
-    "vitest": "2.1.9"
+    "vitest": "3.2.4"
   }
 }

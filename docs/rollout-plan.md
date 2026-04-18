@@ -30,6 +30,18 @@
 
 **🧭 ARCH-GATE 1** — ADR-0003. Review data model, auth boundaries, Connect contract sufficiency, token system, a11y baseline, test coverage ≥70%.
 
+### Phase 2.5 — SE / poly hardening _(landed — April 2026)_
+
+Post-ARCH-GATE 1 review applied:
+
+- `pnpm` `overrides` force-patch `esbuild ≥ 0.25.0` (GHSA-67mh-4wv8-2f99); vitest bumped to 3.2.4 to pull in a patched vite 7.3.2 (GHSA-4w7w-66w2-5vf9). `pnpm audit` clean.
+- `test:coverage` scripts added; v8 provider; thresholds enforced (`connect-client` 97%, `db` 100%, `web/lib` 100%).
+- Defence-in-depth HTTP headers on every response (`X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, HSTS). CSP deferred to Phase 9.
+- `outputFileTracingRoot` pins the workspace root so Next.js ignores stray `package-lock.json` files on dev machines.
+- `.gitattributes` normalises line endings to LF.
+- CodeQL scanning workflow (`.github/workflows/codeql.yml`) + Dependabot config (`.github/dependabot.yml`, grouped weekly PRs for npm and GitHub Actions).
+- CI gained a final `pnpm audit --audit-level moderate` gate.
+
 ### Phase 3 — Real Citizens Connect wiring
 
 - Replace `MockConnectClient` with HTTP/OIDC client (or keep mock + add webhook receiver if Connect is still unavailable).

@@ -41,8 +41,11 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Unit tests
-        run: pnpm test
+      - name: Unit tests (with coverage)
+        run: pnpm test:coverage
 
       - name: Build
         run: pnpm build
+
+      - name: Audit (fail on moderate+ advisories)
+        run: pnpm audit --audit-level moderate
