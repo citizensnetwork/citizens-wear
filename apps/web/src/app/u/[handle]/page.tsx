@@ -5,7 +5,13 @@ import { getConnectClient } from '@/lib/connect';
 import { getWearStore } from '@/lib/store';
 import { getSession } from '@/lib/session';
 import { PageShell } from '@/lib/shell';
-import { followUser, unfollowUser } from '@/lib/actions';
+import {
+  blockUser,
+  followUser,
+  startDirectConversation,
+  unblockUser,
+  unfollowUser,
+} from '@/lib/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,16 +37,20 @@ export default async function UserProfilePage({ params }: Params) {
   const user = await client.users.getByHandle(params.handle);
   if (!user) notFound();
 
-  const [profile, counts, ownedBrands, isFollowing] = await Promise.all([
+  const [profile, counts, ownedBrands, isFollowing, highlights, isBlocked] = await Promise.all([
     store.profiles.getOrCreate(user.id),
     store.follows.counts(user.id),
     client.brands.listForOwner(user.id),
     session ? store.follows.isFollowing(session.user.id, user.id) : Promise.resolve(false),
+    store.highlights.listForOwner(user.id),
+    session
+      ? store.blocks.isBlockedEither(session.user.id, user.id)
+      : Promise.resolve(false),
   ]);
 
   const viewingOwnProfile = session?.user.id === user.id;
   const isPrivate = profile.visibility === 'private';
-  const hidden = isPrivate && !viewingOwnProfile && !isFollowing;
+  const hidden = (isPrivate && !viewingOwnProfile && !isFollowing) || (isBlocked && !viewingOwnProfile);
 
   return (
     <PageShell session={session}>
@@ -70,19 +80,41 @@ export default async function UserProfilePage({ params }: Params) {
             </p>
           </div>
           {!viewingOwnProfile && session ? (
-            <form action={isFollowing ? unfollowUser : followUser}>
-              <input type="hidden" name="handle" value={user.handle} />
-              <button
-                type="submit"
-                className={
-                  isFollowing
-                    ? 'rounded-md border border-border bg-paper px-4 py-1 text-sm hover:bg-paper-soft'
-                    : 'rounded-md bg-ink px-4 py-1 text-sm font-medium text-paper hover:bg-ink-soft'
-                }
-              >
-                {isFollowing ? 'Following' : 'Follow'}
-              </button>
-            </form>
+            <div className="flex flex-wrap items-center gap-2">
+              <form action={isFollowing ? unfollowUser : followUser}>
+                <input type="hidden" name="handle" value={user.handle} />
+                <button
+                  type="submit"
+                  className={
+                    isFollowing
+                      ? 'rounded-md border border-border bg-paper px-4 py-1 text-sm hover:bg-paper-soft'
+                      : 'rounded-md bg-ink px-4 py-1 text-sm font-medium text-paper hover:bg-ink-soft'
+                  }
+                >
+                  {isFollowing ? 'Following' : 'Follow'}
+                </button>
+              </form>
+              {!isBlocked ? (
+                <form action={startDirectConversation}>
+                  <input type="hidden" name="handle" value={user.handle} />
+                  <button
+                    type="submit"
+                    className="rounded-md border border-border bg-paper px-4 py-1 text-sm hover:border-gold"
+                  >
+                    Message
+                  </button>
+                </form>
+              ) : null}
+              <form action={isBlocked ? unblockUser : blockUser}>
+                <input type="hidden" name="handle" value={user.handle} />
+                <button
+                  type="submit"
+                  className="rounded-md border border-border bg-paper px-3 py-1 text-xs text-ink-soft hover:border-gold hover:text-ink"
+                >
+                  {isBlocked ? 'Unblock' : 'Block'}
+                </button>
+              </form>
+            </div>
           ) : null}
           {!session ? (
             <Link
@@ -145,6 +177,26 @@ export default async function UserProfilePage({ params }: Params) {
                         ) : null}
                         <span className="ml-auto text-xs text-ink-soft">@{brand.slug}</span>
                       </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
+            {highlights.length > 0 ? (
+              <section className="mt-10">
+                <h2 className="text-xs uppercase tracking-wide text-ink-soft">Highlights</h2>
+                <ul className="mt-3 flex flex-wrap gap-3">
+                  {highlights.map((h) => (
+                    <li
+                      key={h.id}
+                      className="flex w-32 flex-col items-center gap-1 rounded-md border border-border bg-paper-soft p-2 text-center"
+                    >
+                      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-paper text-xs font-semibold text-ink-soft">
+                        {h.name.slice(0, 2).toUpperCase()}
+                      </span>
+                      <span className="text-xs text-ink">{h.name}</span>
+                      <span className="text-[10px] text-ink-soft">{h.storyIds.length} stories</span>
                     </li>
                   ))}
                 </ul>

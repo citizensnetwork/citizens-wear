@@ -56,13 +56,14 @@
 - Brand profile gains Drops + Posts tabs; product descriptions surfaced.
 - `PageShell` adds Explore link + header search box that works without JavaScript.
 
-### Phase 6 — Stories & DMs
+### Phase 6 — Stories & DMs _(landed — ADR-0006)_
 
-- 24h stories, viewers, reactions, highlights.
-- 1:1 and group DMs with message requests, typing/read receipts, block/report.
-- Realtime layer finalised.
+- 24h ephemeral stories with views, five-emoji reactions, and per-author highlights; followers-only audience supported. Stories tray on `/feed`, viewer at `/stories/[id]`, composer at `/compose/story`.
+- 1:1 and group conversations with message requests for non-mutuals, soft-delete of own messages, mark-read, accept/decline. Inbox at `/messages`, thread at `/messages/[id]`, new-DM at `/messages/new`.
+- Block (symmetric, also unfollows) and report (open subjects: post, comment, message, story, user). Block surfaced on profile pages.
+- `RealtimeBus` interface seam in `@citizens-wear/db` with an in-process `MemoryRealtimeBus` adapter; server actions publish typed events that a Phase 9 broker can fan out across nodes without changing call sites.
 
-**🧭 ARCH-GATE 3** — ADR-0005. Realtime scalability, media retention, privacy controls, rate-limiting, encryption-at-rest, legal pages.
+**🧭 ARCH-GATE 3** — ADR-0006 (this repo). Realtime scalability seam, message-request flow, story retention/expiry, block-symmetry guarantees, report queue shape.
 
 ### Phase 7 — Notifications, saves, settings depth
 

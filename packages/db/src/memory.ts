@@ -1,24 +1,42 @@
 import type {
+  BlockEdge,
+  BlockRepo,
   Comment,
   CommentLikeEdge,
   CommentRepo,
   ConnectId,
+  Conversation,
+  ConversationMember,
+  ConversationRepo,
+  ConversationRequestState,
+  ConversationSummary,
   FeedPage,
   FeedPageParams,
   FollowCounts,
   FollowEdge,
   FollowRepo,
+  HighlightRepo,
   LikeEdge,
   LikeRepo,
+  Message,
+  MessageRepo,
   Post,
   PostMedia,
   PostRepo,
   PostWithMedia,
   Profile,
   ProfileRepo,
+  Report,
+  ReportRepo,
   SaveCollection,
   SaveRepo,
   SettingsRepo,
+  Story,
+  StoryHighlight,
+  StoryReaction,
+  StoryRepo,
+  StoryTrayEntry,
+  StoryView,
   TrendingHashtag,
   UserSettings,
   WearStore,
@@ -42,6 +60,13 @@ export interface MemoryWearStoreOptions {
   readonly seedPosts?: readonly PostWithMedia[];
   readonly seedLikes?: readonly LikeEdge[];
   readonly seedComments?: readonly Comment[];
+  readonly seedStories?: readonly Story[];
+  readonly seedConversations?: readonly {
+    readonly conversation: Conversation;
+    readonly members: readonly ConversationMember[];
+    readonly messages?: readonly Message[];
+  }[];
+  readonly seedBlocks?: readonly BlockEdge[];
 }
 
 export class MemoryWearStore implements WearStore {
@@ -52,6 +77,12 @@ export class MemoryWearStore implements WearStore {
   public readonly likes: LikeRepo;
   public readonly comments: CommentRepo;
   public readonly saves: SaveRepo;
+  public readonly stories: StoryRepo;
+  public readonly highlights: HighlightRepo;
+  public readonly conversations: ConversationRepo;
+  public readonly messages: MessageRepo;
+  public readonly blocks: BlockRepo;
+  public readonly reports: ReportRepo;
 
   private readonly _now: () => Date;
   private readonly _profiles = new Map<ConnectId, Profile>();
@@ -68,6 +99,21 @@ export class MemoryWearStore implements WearStore {
   private readonly _saveCollections = new Map<string, SaveCollection>();
   /** Keyed by `${collectionId}:${postId}`. */
   private readonly _savedPosts = new Set<string>();
+  // Phase 6 — stories
+  private readonly _stories = new Map<string, Story>();
+  /** Keyed by `${storyId}:${viewerId}`. */
+  private readonly _storyViews = new Map<string, StoryView>();
+  private readonly _storyReactions = new Map<string, StoryReaction>();
+  private readonly _highlights = new Map<string, StoryHighlight>();
+  // Phase 6 — direct messages
+  private readonly _conversations = new Map<string, Conversation>();
+  /** Keyed by `${conversationId}:${userId}`. */
+  private readonly _convMembers = new Map<string, ConversationMember>();
+  private readonly _messages = new Map<string, Message>();
+  // Phase 6 — moderation
+  /** Keyed by `${actorId}->${targetId}`. */
+  private readonly _blocks = new Map<string, BlockEdge>();
+  private readonly _reports = new Map<string, Report>();
   private _nextId = 1;
 
   public constructor(options: MemoryWearStoreOptions = {}) {
@@ -91,6 +137,21 @@ export class MemoryWearStore implements WearStore {
     }
     for (const c of options.seedComments ?? []) {
       this._comments.set(c.id, c);
+    }
+    for (const s of options.seedStories ?? []) {
+      this._stories.set(s.id, s);
+    }
+    for (const cv of options.seedConversations ?? []) {
+      this._conversations.set(cv.conversation.id, cv.conversation);
+      for (const m of cv.members) {
+        this._convMembers.set(memberKey(m.conversationId, m.userId), m);
+      }
+      for (const msg of cv.messages ?? []) {
+        this._messages.set(msg.id, msg);
+      }
+    }
+    for (const b of options.seedBlocks ?? []) {
+      this._blocks.set(edgeKey(b.actorId, b.targetId), b);
     }
 
     this.profiles = {
@@ -422,6 +483,525 @@ export class MemoryWearStore implements WearStore {
         return false;
       },
     };
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Phase 6 — stories
+    // ─────────────────────────────────────────────────────────────────────
+    const DEFAULT_STORY_TTL_MS = 1000 * 60 * 60 * 24;
+
+    this.stories = {
+      create: async (input) => {
+        const createdAt = this._now();
+        const ttl = Math.max(1000, input.ttlMs ?? DEFAULT_STORY_TTL_MS);
+        const expiresAt = new Date(createdAt.getTime() + ttl);
+        const story: Story = {
+          id: this._id('sty'),
+          authorId: input.authorId,
+          brandId: input.brandId ?? null,
+          mediaUrl: input.mediaUrl ?? null,
+          mediaKind: input.mediaKind ?? 'image',
+          caption: (input.caption ?? '').trim() || null,
+          audience: input.audience ?? 'public',
+          createdAt: createdAt.toISOString(),
+          expiresAt: expiresAt.toISOString(),
+        };
+        if (story.mediaKind === 'text' && !story.caption) {
+          throw new WearStoreError('empty_story', 'Text stories must have a caption.');
+        }
+        if (story.mediaKind !== 'text' && !story.mediaUrl) {
+          throw new WearStoreError('empty_story', 'Image/video stories must have a media url.');
+        }
+        this._stories.set(story.id, story);
+        return story;
+      },
+      getById: async (id) => this._stories.get(id) ?? null,
+      listByAuthor: async (authorId) =>
+        [...this._stories.values()]
+          .filter((s) => s.authorId === authorId)
+          .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
+      listActiveForViewer: async (viewerId) => {
+        const nowMs = this._now().getTime();
+        const followingTargets = new Set<ConnectId>();
+        for (const edge of this._follows.values()) {
+          if (edge.actorId === viewerId) followingTargets.add(edge.targetId);
+        }
+        return [...this._stories.values()]
+          .filter((s) => Date.parse(s.expiresAt) > nowMs)
+          .filter((s) => !this._isBlockedEither(viewerId, s.authorId))
+          .filter((s) => {
+            if (s.authorId === viewerId) return true;
+            if (s.audience === 'public') return true;
+            return followingTargets.has(s.authorId);
+          })
+          .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+      },
+      trayForViewer: async (viewerId) => {
+        const active = await this.stories.listActiveForViewer(viewerId);
+        const grouped = new Map<ConnectId, Story[]>();
+        for (const s of active) {
+          const list = grouped.get(s.authorId) ?? [];
+          list.push(s);
+          grouped.set(s.authorId, list);
+        }
+        const entries: StoryTrayEntry[] = [];
+        for (const [authorId, list] of grouped.entries()) {
+          // Already sorted newest-first by listActiveForViewer.
+          const latest = list[0]!;
+          const hasUnseen = list.some(
+            (s) => !this._storyViews.has(`${s.id}:${viewerId}`) && s.authorId !== viewerId,
+          );
+          entries.push({
+            authorId,
+            latestStoryId: latest.id,
+            latestCreatedAt: latest.createdAt,
+            storyCount: list.length,
+            hasUnseen,
+          });
+        }
+        // Viewer's own tray entry first, then unseen, then the rest by recency.
+        return entries.sort((a, b) => {
+          if (a.authorId === viewerId) return -1;
+          if (b.authorId === viewerId) return 1;
+          if (a.hasUnseen !== b.hasUnseen) return a.hasUnseen ? -1 : 1;
+          return Date.parse(b.latestCreatedAt) - Date.parse(a.latestCreatedAt);
+        });
+      },
+      recordView: async (storyId, viewerId) => {
+        const story = this._stories.get(storyId);
+        if (!story) {
+          throw new WearStoreError('story_not_found', `Unknown story ${storyId}.`);
+        }
+        if (story.authorId === viewerId) {
+          // Authors don't show up in their own viewer list, but we still
+          // return a synthetic view so callers don't have to special-case.
+          return { storyId, viewerId, viewedAt: this._now().toISOString() };
+        }
+        const key = `${storyId}:${viewerId}`;
+        const existing = this._storyViews.get(key);
+        if (existing) return existing;
+        const view: StoryView = {
+          storyId,
+          viewerId,
+          viewedAt: this._now().toISOString(),
+        };
+        this._storyViews.set(key, view);
+        return view;
+      },
+      listViewers: async (storyId, callerId) => {
+        const story = this._stories.get(storyId);
+        if (!story) return [];
+        if (story.authorId !== callerId) {
+          throw new WearStoreError('forbidden', 'Only the author can see story viewers.');
+        }
+        return [...this._storyViews.values()]
+          .filter((v) => v.storyId === storyId)
+          .sort((a, b) => Date.parse(b.viewedAt) - Date.parse(a.viewedAt));
+      },
+      addReaction: async ({ storyId, userId, kind }) => {
+        const story = this._stories.get(storyId);
+        if (!story) {
+          throw new WearStoreError('story_not_found', `Unknown story ${storyId}.`);
+        }
+        if (this._isBlockedEither(userId, story.authorId)) {
+          throw new WearStoreError('forbidden', 'Cannot react to this story.');
+        }
+        const reaction: StoryReaction = {
+          id: this._id('rxn'),
+          storyId,
+          userId,
+          kind,
+          createdAt: this._now().toISOString(),
+        };
+        this._storyReactions.set(reaction.id, reaction);
+        return reaction;
+      },
+      listReactions: async (storyId) =>
+        [...this._storyReactions.values()]
+          .filter((r) => r.storyId === storyId)
+          .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
+      delete: async (storyId, authorId) => {
+        const s = this._stories.get(storyId);
+        if (!s) return;
+        if (s.authorId !== authorId) {
+          throw new WearStoreError('forbidden', 'Only the author can delete this story.');
+        }
+        this._stories.delete(storyId);
+        for (const key of [...this._storyViews.keys()]) {
+          if (key.startsWith(`${storyId}:`)) this._storyViews.delete(key);
+        }
+        for (const [id, r] of [...this._storyReactions.entries()]) {
+          if (r.storyId === storyId) this._storyReactions.delete(id);
+        }
+        for (const [id, h] of [...this._highlights.entries()]) {
+          if (h.storyIds.includes(storyId)) {
+            this._highlights.set(id, {
+              ...h,
+              storyIds: h.storyIds.filter((sid) => sid !== storyId),
+            });
+          }
+        }
+      },
+    };
+
+    this.highlights = {
+      create: async ({ ownerId, name, coverUrl }) => {
+        const trimmed = name.trim();
+        if (!trimmed) {
+          throw new WearStoreError('empty_highlight', 'Highlight name must not be empty.');
+        }
+        const created: StoryHighlight = {
+          id: this._id('hlt'),
+          ownerId,
+          name: trimmed.slice(0, 80),
+          coverUrl: coverUrl ?? null,
+          createdAt: this._now().toISOString(),
+          storyIds: [],
+        };
+        this._highlights.set(created.id, created);
+        return created;
+      },
+      listForOwner: async (ownerId) =>
+        [...this._highlights.values()]
+          .filter((h) => h.ownerId === ownerId)
+          .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
+      getById: async (id) => this._highlights.get(id) ?? null,
+      addStory: async (highlightId, storyId, ownerId) => {
+        const highlight = this._requireOwnedHighlight(highlightId, ownerId);
+        const story = this._stories.get(storyId);
+        if (!story) {
+          throw new WearStoreError('story_not_found', `Unknown story ${storyId}.`);
+        }
+        if (story.authorId !== ownerId) {
+          throw new WearStoreError(
+            'forbidden',
+            'Highlights may only contain the owner’s own stories.',
+          );
+        }
+        if (highlight.storyIds.includes(storyId)) return highlight;
+        const next: StoryHighlight = {
+          ...highlight,
+          storyIds: [...highlight.storyIds, storyId],
+        };
+        this._highlights.set(highlightId, next);
+        return next;
+      },
+      removeStory: async (highlightId, storyId, ownerId) => {
+        const highlight = this._requireOwnedHighlight(highlightId, ownerId);
+        const next: StoryHighlight = {
+          ...highlight,
+          storyIds: highlight.storyIds.filter((s) => s !== storyId),
+        };
+        this._highlights.set(highlightId, next);
+        return next;
+      },
+      delete: async (highlightId, ownerId) => {
+        this._requireOwnedHighlight(highlightId, ownerId);
+        this._highlights.delete(highlightId);
+      },
+    };
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Phase 6 — direct messages
+    // ─────────────────────────────────────────────────────────────────────
+    this.conversations = {
+      getOrCreateDirect: async (actorId, otherId) => {
+        if (actorId === otherId) {
+          throw new WearStoreError('self_dm', 'Cannot start a DM with yourself.');
+        }
+        if (this._isBlockedEither(actorId, otherId)) {
+          throw new WearStoreError('forbidden', 'Cannot start a DM with this user.');
+        }
+        for (const conv of this._conversations.values()) {
+          if (conv.kind !== 'direct') continue;
+          const members = [...this._convMembers.values()].filter(
+            (m) => m.conversationId === conv.id,
+          );
+          if (members.length !== 2) continue;
+          const ids = members.map((m) => m.userId).sort();
+          if (ids[0] === [actorId, otherId].sort()[0] && ids[1] === [actorId, otherId].sort()[1]) {
+            return conv;
+          }
+        }
+        const followsActorToOther = this._follows.has(edgeKey(actorId, otherId));
+        const followsOtherToActor = this._follows.has(edgeKey(otherId, actorId));
+        // If the recipient already follows the sender, the DM is auto-accepted
+        // on their side. Otherwise it lands in their requests inbox.
+        const otherState: ConversationRequestState = followsOtherToActor
+          ? 'accepted'
+          : 'requested';
+        const actorState: ConversationRequestState = followsActorToOther
+          ? 'accepted'
+          : 'accepted';
+        const ts = this._now().toISOString();
+        const conv: Conversation = {
+          id: this._id('cnv'),
+          kind: 'direct',
+          name: null,
+          createdById: actorId,
+          createdAt: ts,
+          updatedAt: ts,
+        };
+        this._conversations.set(conv.id, conv);
+        this._convMembers.set(memberKey(conv.id, actorId), {
+          conversationId: conv.id,
+          userId: actorId,
+          joinedAt: ts,
+          lastReadAt: ts,
+          mutedUntil: null,
+          requestState: actorState,
+          role: 'owner',
+        });
+        this._convMembers.set(memberKey(conv.id, otherId), {
+          conversationId: conv.id,
+          userId: otherId,
+          joinedAt: ts,
+          lastReadAt: null,
+          mutedUntil: null,
+          requestState: otherState,
+          role: 'member',
+        });
+        return conv;
+      },
+      createGroup: async ({ createdById, name, memberIds }) => {
+        const trimmed = name.trim();
+        if (!trimmed) {
+          throw new WearStoreError('empty_group_name', 'Group name must not be empty.');
+        }
+        const unique = Array.from(new Set([createdById, ...memberIds])).filter(
+          (id) => !this._isBlockedEither(createdById, id),
+        );
+        if (unique.length < 2) {
+          throw new WearStoreError('group_too_small', 'A group needs at least two members.');
+        }
+        const ts = this._now().toISOString();
+        const conv: Conversation = {
+          id: this._id('cnv'),
+          kind: 'group',
+          name: trimmed.slice(0, 80),
+          createdById,
+          createdAt: ts,
+          updatedAt: ts,
+        };
+        this._conversations.set(conv.id, conv);
+        for (const userId of unique) {
+          this._convMembers.set(memberKey(conv.id, userId), {
+            conversationId: conv.id,
+            userId,
+            joinedAt: ts,
+            lastReadAt: userId === createdById ? ts : null,
+            mutedUntil: null,
+            requestState: 'accepted',
+            role: userId === createdById ? 'owner' : 'member',
+          });
+        }
+        return conv;
+      },
+      getById: async (id, callerId) => {
+        const conv = this._conversations.get(id);
+        if (!conv) return null;
+        if (!this._convMembers.has(memberKey(id, callerId))) return null;
+        return conv;
+      },
+      membership: async (conversationId, userId) =>
+        this._convMembers.get(memberKey(conversationId, userId)) ?? null,
+      listMembers: async (conversationId) =>
+        [...this._convMembers.values()].filter((m) => m.conversationId === conversationId),
+      listForUser: async (userId, options) => {
+        const wantState = options?.requestState;
+        const summaries: ConversationSummary[] = [];
+        for (const conv of this._conversations.values()) {
+          const me = this._convMembers.get(memberKey(conv.id, userId));
+          if (!me) continue;
+          if (wantState && me.requestState !== wantState) continue;
+          const members = [...this._convMembers.values()].filter(
+            (m) => m.conversationId === conv.id,
+          );
+          const messages = [...this._messages.values()]
+            .filter((m) => m.conversationId === conv.id)
+            .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+          const lastMessage = messages.length ? messages[messages.length - 1]! : null;
+          const lastReadMs = me.lastReadAt ? Date.parse(me.lastReadAt) : 0;
+          const unreadCount = messages.filter(
+            (m) => m.authorId !== userId && !m.deletedAt && Date.parse(m.createdAt) > lastReadMs,
+          ).length;
+          summaries.push({ conversation: conv, members, lastMessage, unreadCount });
+        }
+        return summaries.sort((a, b) => {
+          const aTs = a.lastMessage?.createdAt ?? a.conversation.updatedAt;
+          const bTs = b.lastMessage?.createdAt ?? b.conversation.updatedAt;
+          return Date.parse(bTs) - Date.parse(aTs);
+        });
+      },
+      markRead: async (conversationId, userId) => {
+        const key = memberKey(conversationId, userId);
+        const member = this._convMembers.get(key);
+        if (!member) return;
+        this._convMembers.set(key, { ...member, lastReadAt: this._now().toISOString() });
+      },
+      acceptRequest: async (conversationId, userId) => {
+        const key = memberKey(conversationId, userId);
+        const member = this._convMembers.get(key);
+        if (!member) {
+          throw new WearStoreError('not_a_member', 'No membership found.');
+        }
+        const next: ConversationMember = { ...member, requestState: 'accepted' };
+        this._convMembers.set(key, next);
+        return next;
+      },
+      declineRequest: async (conversationId, userId) => {
+        const key = memberKey(conversationId, userId);
+        const member = this._convMembers.get(key);
+        if (!member) return;
+        // Decline = leave the conversation.
+        this._convMembers.delete(key);
+      },
+      setMuted: async (conversationId, userId, mutedUntil) => {
+        const key = memberKey(conversationId, userId);
+        const member = this._convMembers.get(key);
+        if (!member) {
+          throw new WearStoreError('not_a_member', 'No membership found.');
+        }
+        const next: ConversationMember = { ...member, mutedUntil };
+        this._convMembers.set(key, next);
+        return next;
+      },
+      leave: async (conversationId, userId) => {
+        this._convMembers.delete(memberKey(conversationId, userId));
+      },
+    };
+
+    this.messages = {
+      send: async ({ conversationId, authorId, body }) => {
+        const conv = this._conversations.get(conversationId);
+        if (!conv) {
+          throw new WearStoreError('conversation_not_found', `Unknown ${conversationId}.`);
+        }
+        const me = this._convMembers.get(memberKey(conversationId, authorId));
+        if (!me) {
+          throw new WearStoreError('forbidden', 'Not a member of this conversation.');
+        }
+        if (me.requestState !== 'accepted' && conv.createdById !== authorId) {
+          throw new WearStoreError('request_pending', 'Accept the request before replying.');
+        }
+        const trimmed = body.trim();
+        if (!trimmed) {
+          throw new WearStoreError('empty_message', 'Message body must not be empty.');
+        }
+        // Sanity-check blocks against every other member (1:1 or group).
+        for (const m of this._convMembers.values()) {
+          if (m.conversationId !== conversationId || m.userId === authorId) continue;
+          if (this._isBlockedEither(authorId, m.userId)) {
+            throw new WearStoreError('forbidden', 'Cannot message a user you have blocked.');
+          }
+        }
+        const ts = this._now().toISOString();
+        const message: Message = {
+          id: this._id('msg'),
+          conversationId,
+          authorId,
+          body: trimmed.slice(0, 4000),
+          createdAt: ts,
+          deletedAt: null,
+        };
+        this._messages.set(message.id, message);
+        this._conversations.set(conversationId, { ...conv, updatedAt: ts });
+        return message;
+      },
+      list: async (conversationId, callerId, params) => {
+        const member = this._convMembers.get(memberKey(conversationId, callerId));
+        if (!member) {
+          throw new WearStoreError('forbidden', 'Not a member of this conversation.');
+        }
+        const all = [...this._messages.values()]
+          .filter((m) => m.conversationId === conversationId)
+          .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+        const limit = Math.max(1, Math.min(100, params?.limit ?? 50));
+        const start = params?.cursor ? Number.parseInt(params.cursor, 10) : 0;
+        if (Number.isNaN(start) || start < 0) {
+          throw new WearStoreError('invalid_cursor', `Invalid cursor: ${params?.cursor ?? ''}`);
+        }
+        const slice = all.slice(start, start + limit);
+        const nextIndex = start + slice.length;
+        return {
+          items: slice,
+          nextCursor: nextIndex < all.length ? String(nextIndex) : null,
+        };
+      },
+      deleteOwn: async (messageId, callerId) => {
+        const m = this._messages.get(messageId);
+        if (!m) return;
+        if (m.authorId !== callerId) {
+          throw new WearStoreError('forbidden', 'Only the author can delete this message.');
+        }
+        this._messages.set(messageId, { ...m, deletedAt: this._now().toISOString(), body: '' });
+      },
+    };
+
+    this.blocks = {
+      block: async (actorId, targetId) => {
+        if (actorId === targetId) {
+          throw new WearStoreError('self_block', 'A user cannot block themselves.');
+        }
+        const key = edgeKey(actorId, targetId);
+        const existing = this._blocks.get(key);
+        if (existing) return existing;
+        const edge: BlockEdge = {
+          actorId,
+          targetId,
+          createdAt: this._now().toISOString(),
+        };
+        this._blocks.set(key, edge);
+        // Blocking implies unfollowing in both directions.
+        this._follows.delete(edgeKey(actorId, targetId));
+        this._follows.delete(edgeKey(targetId, actorId));
+        return edge;
+      },
+      unblock: async (actorId, targetId) => {
+        this._blocks.delete(edgeKey(actorId, targetId));
+      },
+      isBlockedEither: async (a, b) => this._isBlockedEither(a, b),
+      listBlocked: async (actorId) =>
+        [...this._blocks.values()].filter((b) => b.actorId === actorId),
+    };
+
+    this.reports = {
+      create: async ({ reporterId, subjectKind, subjectId, reason, note }) => {
+        const report: Report = {
+          id: this._id('rep'),
+          reporterId,
+          subjectKind,
+          subjectId,
+          reason,
+          note: (note ?? '').trim() ? note!.trim().slice(0, 2000) : null,
+          createdAt: this._now().toISOString(),
+        };
+        this._reports.set(report.id, report);
+        return report;
+      },
+      listForSubject: async (subjectKind, subjectId) =>
+        [...this._reports.values()]
+          .filter((r) => r.subjectKind === subjectKind && r.subjectId === subjectId)
+          .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
+      listByReporter: async (reporterId) =>
+        [...this._reports.values()]
+          .filter((r) => r.reporterId === reporterId)
+          .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
+    };
+  }
+
+  private _isBlockedEither(a: ConnectId, b: ConnectId): boolean {
+    return this._blocks.has(edgeKey(a, b)) || this._blocks.has(edgeKey(b, a));
+  }
+
+  private _requireOwnedHighlight(highlightId: string, ownerId: ConnectId): StoryHighlight {
+    const highlight = this._highlights.get(highlightId);
+    if (!highlight) {
+      throw new WearStoreError('highlight_not_found', `Unknown highlight ${highlightId}.`);
+    }
+    if (highlight.ownerId !== ownerId) {
+      throw new WearStoreError('forbidden', 'Only the owner can modify this highlight.');
+    }
+    return highlight;
   }
 
   private _id(prefix: string): string {
@@ -489,4 +1069,8 @@ export class MemoryWearStore implements WearStore {
 
 function edgeKey(actorId: ConnectId, targetId: ConnectId): string {
   return `${actorId}->${targetId}`;
+}
+
+function memberKey(conversationId: string, userId: ConnectId): string {
+  return `${conversationId}:${userId}`;
 }

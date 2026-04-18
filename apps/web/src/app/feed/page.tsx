@@ -7,6 +7,7 @@ import { getSession } from '@/lib/session';
 import { featureFlags } from '@/lib/flags';
 import { PageShell } from '@/lib/shell';
 import { PostCard } from '@/lib/post-card';
+import { StoryTray } from '@/lib/story-tray';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +56,17 @@ export default async function FeedPage({ searchParams }: SearchParams) {
     }),
   );
 
+  // Stories tray — uses the viewer's id when signed in, otherwise the
+  // public seed identity, mirroring the feed fallback above.
+  const trayViewerId = session?.user.id ?? 'usr_001';
+  const tray = await store.stories.trayForViewer(trayViewerId);
+  const trayEntries = await Promise.all(
+    tray.map(async (entry) => ({
+      tray: entry,
+      author: await client.users.getById(entry.authorId),
+    })),
+  );
+
   return (
     <PageShell session={session}>
       <section className="my-10">
@@ -96,6 +108,15 @@ export default async function FeedPage({ searchParams }: SearchParams) {
             </Link>
           </nav>
         ) : null}
+
+        <div className="mt-6">
+          <StoryTray
+            entries={trayEntries}
+            viewerSignedIn={!!session}
+            viewerHandle={session?.user.handle ?? null}
+            viewerId={session?.user.id ?? null}
+          />
+        </div>
 
         {enriched.length === 0 ? (
           <p className="mt-8 text-sm text-ink-soft">

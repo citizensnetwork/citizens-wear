@@ -8,9 +8,17 @@ import { MemoryWearStore } from '@citizens-wear/db';
  * page and profile pages have something to render. Phase 3 swaps this for a
  * Prisma-backed store — the interface is identical. Phase 4 extends the
  * seed with a couple of posts so the feed, post detail, and activity tab
- * render without first requiring the composer.
+ * render without first requiring the composer. Phase 6 seeds an active
+ * story for one of the fixture brands plus a mutually-followed DM thread
+ * so the stories tray and `/messages` inbox are non-empty out of the box.
  */
 let _store: WearStore | undefined;
+
+/**
+ * The fixture stories use a far-future expiry so they never age out of the
+ * seed. Real stories created via the composer get the standard 24h TTL.
+ */
+const FAR_FUTURE = '2099-12-31T23:59:59.000Z';
 
 export function getWearStore(): WearStore {
   if (!_store) {
@@ -69,6 +77,80 @@ export function getWearStore(): WearStore {
             taggedProductIds: [],
           },
           media: [],
+        },
+      ],
+      seedStories: [
+        {
+          id: 'sty_seed_001',
+          authorId: 'usr_001',
+          brandId: 'brd_001',
+          mediaUrl: null,
+          mediaKind: 'text',
+          caption: 'Friday drop loading. Set a reminder. ✝️',
+          audience: 'public',
+          createdAt: '2026-04-18T10:00:00.000Z',
+          expiresAt: FAR_FUTURE,
+        },
+        {
+          id: 'sty_seed_002',
+          authorId: 'usr_002',
+          brandId: null,
+          mediaUrl: null,
+          mediaKind: 'text',
+          caption: 'Caps re-stocked. First come, first served.',
+          audience: 'public',
+          createdAt: '2026-04-18T11:30:00.000Z',
+          expiresAt: FAR_FUTURE,
+        },
+      ],
+      seedConversations: [
+        {
+          conversation: {
+            id: 'cnv_seed_001',
+            kind: 'direct',
+            name: null,
+            createdById: 'usr_001',
+            createdAt: '2026-04-17T08:00:00.000Z',
+            updatedAt: '2026-04-17T08:05:00.000Z',
+          },
+          members: [
+            {
+              conversationId: 'cnv_seed_001',
+              userId: 'usr_001',
+              joinedAt: '2026-04-17T08:00:00.000Z',
+              lastReadAt: '2026-04-17T08:05:00.000Z',
+              mutedUntil: null,
+              requestState: 'accepted',
+              role: 'owner',
+            },
+            {
+              conversationId: 'cnv_seed_001',
+              userId: 'usr_002',
+              joinedAt: '2026-04-17T08:00:00.000Z',
+              lastReadAt: '2026-04-17T08:00:00.000Z',
+              mutedUntil: null,
+              requestState: 'accepted',
+              role: 'member',
+            },
+          ],
+          messages: [
+            {
+              id: 'msg_seed_001',
+              conversationId: 'cnv_seed_001',
+              authorId: 'usr_001',
+              body: 'Hey Samuel — want to swap a Salt Tee for one of your caps?',
+              createdAt: '2026-04-17T08:00:30.000Z',
+              deletedAt: null,
+            },
+            {
+              id: 'msg_seed_002',
+              conversationId: 'cnv_seed_001',
+              authorId: 'usr_002',
+              body: 'Always. I’ll bring two on Sunday.',
+              createdAt: '2026-04-17T08:05:00.000Z',
+              deletedAt: null,
+            },
+          ],
         },
       ],
     });

@@ -34,6 +34,11 @@ export function PageShell({
           <Link href="/explore" className="hover:text-ink">
             Explore
           </Link>
+          {session ? (
+            <Link href="/messages" className="hover:text-ink">
+              Messages
+            </Link>
+          ) : null}
           <Link
             href="/api/connect/status"
             className="underline decoration-gold decoration-1 underline-offset-4 hover:text-ink"
