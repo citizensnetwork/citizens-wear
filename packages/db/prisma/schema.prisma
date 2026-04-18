@@ -1,0 +1,98 @@
+// Citizens Wear data model — Phase 2.
+//
+// This file is the reference source-of-truth for Wear-owned data. It is not
+// yet wired to a runtime (`prisma generate` / `prisma migrate`) — that lands
+// with Phase 3, when Citizens Connect is also wired for real. Until then,
+// `packages/db/src/memory.ts` provides an in-memory store with the same
+// shape, used by the app and by contract tests.
+//
+// Ownership:
+//   - `User` and `Brand` mirror identities from Citizens Connect. Connect is
+//     the source of truth; Wear stores only the Connect id plus a local
+//     `Profile` row for Wear-specific state (visibility, bio, etc.).
+//   - `Profile`, `Follow`, and `UserSettings` are Wear-owned.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Mirror of a Citizens Connect citizen. Connect owns `handle`, `displayName`,
+/// `email`, and `avatarUrl`; Wear stores them denormalised for fast reads and
+/// reconciles via the Connect event bus.
+model User {
+  id           String   @id // Connect id, e.g. "usr_001"
+  handle       String   @unique
+  displayName  String
+  email        String?
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  profile      Profile?
+  settings     UserSettings?
+  followers    Follow[]  @relation("FollowTarget")
+  following    Follow[]  @relation("FollowActor")
+  ownedBrands  Brand[]   @relation("BrandOwner")
+}
+
+/// Mirror of a Citizens Connect brand.
+model Brand {
+  id           String   @id // Connect id, e.g. "brd_001"
+  slug         String   @unique
+  name         String
+  tagline      String?
+  websiteUrl   String?
+  logoUrl      String?
+  verified     Boolean  @default(false)
+  ownerUserId  String
+  owner        User     @relation("BrandOwner", fields: [ownerUserId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+/// Wear-specific profile state attached to a `User`.
+model Profile {
+  userId       String   @id
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio          String?
+  visibility   ProfileVisibility @default(PUBLIC)
+  /// Wear-side verified flag. Distinct from `Brand.verified`: this marks a
+  /// citizen as a recognised Kingdom figure inside Wear (e.g. pastor, leader).
+  verified     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+enum ProfileVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+/// Follow edge. `(actorId, targetId)` is unique; self-follows are disallowed
+/// at the application layer.
+model Follow {
+  actorId      String
+  targetId     String
+  actor        User     @relation("FollowActor", fields: [actorId], references: [id], onDelete: Cascade)
+  target       User     @relation("FollowTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@id([actorId, targetId])
+  @@index([targetId])
+}
+
+/// Per-user settings skeleton. Phase 2 lands only visibility + display name
+/// overrides; notification/privacy surfaces land with Phase 7.
+model UserSettings {
+  userId             String   @id
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayNameOverride String?
+  profileVisibility  ProfileVisibility @default(PUBLIC)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}

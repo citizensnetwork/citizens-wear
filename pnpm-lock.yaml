@@ -26,6 +26,9 @@ importers:
       '@citizens-wear/connect-client':
         specifier: workspace:*
         version: link:../../packages/connect-client
+      '@citizens-wear/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@citizens-wear/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -85,6 +88,34 @@ importers:
   packages/config: {}
 
   packages/connect-client:
+    devDependencies:
+      '@citizens-wear/config':
+        specifier: workspace:*
+        version: link:../config
+      '@typescript-eslint/eslint-plugin':
+        specifier: 7.18.0
+        version: 7.18.0(@typescript-eslint/parser@7.18.0(eslint@8.57.0)(typescript@5.5.4))(eslint@8.57.0)(typescript@5.5.4)
+      '@typescript-eslint/parser':
+        specifier: 7.18.0
+        version: 7.18.0(eslint@8.57.0)(typescript@5.5.4)
+      eslint:
+        specifier: 8.57.0
+        version: 8.57.0
+      eslint-config-prettier:
+        specifier: 9.1.0
+        version: 9.1.0(eslint@8.57.0)
+      typescript:
+        specifier: 5.5.4
+        version: 5.5.4
+      vitest:
+        specifier: 2.1.9
+        version: 2.1.9(@types/node@20.14.10)
+
+  packages/db:
+    dependencies:
+      '@citizens-wear/connect-client':
+        specifier: workspace:*
+        version: link:../connect-client
     devDependencies:
       '@citizens-wear/config':
         specifier: workspace:*

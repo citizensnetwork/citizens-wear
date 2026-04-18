@@ -20,12 +20,13 @@
 - Next.js landing page at `/`, `/health`, `/api/connect/status`.
 - Docs: `README`, `CONTRIBUTING`, `ARCHITECTURE.md`, ADR-0001, ADR-0002, this plan.
 
-### Phase 2 — Identity, profiles, follow graph
+### Phase 2 — Identity, profiles, follow graph _(landed — ADR-0003)_
 
-- Auth.js wired to the Connect adapter (still mocked).
-- Prisma schema + migrations for `User`, `Brand`, `Profile`, `Follow`.
-- Profile pages, follow/unfollow, public vs private, brand vs user, verified flag.
-- Settings skeleton.
+- `@citizens-wear/db` with `prisma/schema.prisma` (User, Brand, Profile, Follow, UserSettings) and an in-memory `WearStore` contract + tests.
+- Cookie-backed session bridged to the Connect `AuthProvider` (Auth.js-shaped; mock token today, OIDC in Phase 3).
+- Profile pages: `/u/[handle]` (user, follow/unfollow, public/private, verified badge) and `/b/[slug]` (brand, verified, drops list).
+- `/settings` skeleton (display-name override, bio, profile visibility, account kind).
+- Server actions for follow/unfollow that re-authenticate on every call.
 
 **🧭 ARCH-GATE 1** — ADR-0003. Review data model, auth boundaries, Connect contract sufficiency, token system, a11y baseline, test coverage ≥70%.
 

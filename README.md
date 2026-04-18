@@ -10,7 +10,7 @@ This repository is the Citizens Wear monorepo.
 
 ## Status
 
-**Phase 1 — Foundations & Connect integration contract.**
+**Phase 2 — Identity, profiles, follow graph.**
 
 See [`docs/rollout-plan.md`](docs/rollout-plan.md) for the full phased rollout and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the current architecture.
 
@@ -22,6 +22,7 @@ apps/
 packages/
   ui/                   Design tokens (50/20/30 white/black/gold) and Tailwind preset
   connect-client/       Citizens Connect integration contract + MockConnectClient
+  db/                   Wear data model — Prisma schema + in-memory WearStore
   config/               Shared tsconfig + ESLint preset
 docs/
   ARCHITECTURE.md
@@ -53,11 +54,16 @@ pnpm format       # Prettier write
 pnpm format:check # Prettier check (runs in CI)
 ```
 
-## Key endpoints (Phase 1)
+## Key endpoints (Phase 2)
 
-- `GET /` — Landing page wired to design tokens.
+- `GET /` — Landing page, featured brands.
+- `GET /sign-in` — Mock-token sign-in (replaced by Connect OIDC redirect in Phase 3).
+- `GET /u/[handle]` — Citizen profile, follow/unfollow, public/private, verified badge.
+- `GET /b/[slug]` — Brand profile with owner link and drops.
+- `GET /settings` — Profile & account settings skeleton.
 - `GET /health` — Liveness probe for the web service.
-- `GET /api/connect/status` — Health-checks the Citizens Connect client (mock in Phase 1).
+- `GET /api/connect/status` — Health-checks the Citizens Connect client (mock).
+- `GET /api/session` — Lightweight session probe (`{ authenticated, user, session }`).
 
 ## Citizens Connect integration
 

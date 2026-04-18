@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@citizens-wear/connect-client": "workspace:*",
+    "@citizens-wear/db": "workspace:*",
     "@citizens-wear/ui": "workspace:*",
     "next": "15.5.15",
     "react": "18.3.1",
