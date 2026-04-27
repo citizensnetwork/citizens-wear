@@ -10,7 +10,8 @@
 //   - `User` and `Brand` mirror identities from Citizens Connect. Connect is
 //     the source of truth; Wear stores only the Connect id plus a local
 //     `Profile` row for Wear-specific state (visibility, bio, etc.).
-//   - `Profile`, `Follow`, and `UserSettings` are Wear-owned.
+//   - `Profile`, `Follow`, `UserSettings`, posts, engagement, cart intent,
+//     brand follows, and moderation state are Wear-owned.
 
 generator client {
   provider = "prisma-client-js"
@@ -38,6 +39,14 @@ model User {
   followers    Follow[]  @relation("FollowTarget")
   following    Follow[]  @relation("FollowActor")
   ownedBrands  Brand[]   @relation("BrandOwner")
+  posts        Post[]    @relation("PostAuthor")
+  postLikes    PostLike[] @relation("PostLikeActor")
+  comments     PostComment[] @relation("CommentAuthor")
+  savedPosts   SavedPost[]
+  cartItems    CartItem[]
+  brandFollows BrandFollow[]
+  reportedModerationItems ModerationItem[] @relation("ModerationReporter")
+  reviewedModerationItems ModerationItem[] @relation("ModerationReviewer")
 }
 
 /// Mirror of a Citizens Connect brand.
@@ -51,6 +60,8 @@ model Brand {
   verified     Boolean  @default(false)
   ownerUserId  String
   owner        User     @relation("BrandOwner", fields: [ownerUserId], references: [id])
+  posts        Post[]   @relation("BrandPosts")
+  followers    BrandFollow[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -71,6 +82,42 @@ model Profile {
 enum ProfileVisibility {
   PUBLIC
   PRIVATE
+}
+
+enum PostAuthorKind {
+  CITIZEN
+  BRAND
+}
+
+enum PostStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  HIDDEN
+  REJECTED
+}
+
+enum PostVisibility {
+  PUBLIC
+  FOLLOWERS
+}
+
+enum CommentStatus {
+  VISIBLE
+  HIDDEN
+}
+
+enum ModerationTargetType {
+  POST
+  COMMENT
+  CREATOR_SUBMISSION
+}
+
+enum ModerationStatus {
+  OPEN
+  APPROVED
+  REJECTED
+  HIDDEN
 }
 
 /// Follow edge. `(actorId, targetId)` is unique; self-follows are disallowed
@@ -95,4 +142,137 @@ model UserSettings {
   profileVisibility  ProfileVisibility @default(PUBLIC)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+}
+
+/// Wear-owned social post. `brandId` and product tags point to Connect-owned
+/// catalog records; Wear stores references only. Application invariant:
+/// `authorKind` is `BRAND` iff `brandId` is present.
+model Post {
+  id            String      @id
+  authorUserId  String
+  author        User        @relation("PostAuthor", fields: [authorUserId], references: [id], onDelete: Cascade)
+  authorKind    PostAuthorKind
+  brandId       String?
+  brand         Brand?      @relation("BrandPosts", fields: [brandId], references: [id], onDelete: Restrict)
+  caption       String
+  status        PostStatus  @default(PUBLISHED)
+  visibility    PostVisibility @default(PUBLIC)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  publishedAt   DateTime?
+
+  media         PostMedia[]
+  productTags   PostProductTag[]
+  likes         PostLike[]
+  comments      PostComment[]
+  saves         SavedPost[]
+
+  @@index([authorUserId, createdAt])
+  @@index([brandId, createdAt])
+  @@index([status, publishedAt])
+}
+
+model PostMedia {
+  id        String   @id
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  url       String
+  altText   String
+  sortOrder Int      @default(0)
+
+  @@index([postId, sortOrder])
+}
+
+/// Product tags reference Connect product ids; there is no local Product table.
+model PostProductTag {
+  postId    String
+  productId String
+  sortOrder Int    @default(0)
+  post      Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([postId, productId])
+  @@index([productId])
+}
+
+model PostLike {
+  postId      String
+  actorUserId String
+  createdAt   DateTime @default(now())
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  actor       User     @relation("PostLikeActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@id([postId, actorUserId])
+  @@index([actorUserId])
+}
+
+model PostComment {
+  id           String   @id
+  postId       String
+  post         Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorUserId String
+  author       User     @relation("CommentAuthor", fields: [authorUserId], references: [id], onDelete: Cascade)
+  body         String
+  status       CommentStatus @default(VISIBLE)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([postId, createdAt])
+  @@index([authorUserId])
+}
+
+model SavedPost {
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([postId])
+}
+
+/// Cart intent only. Payment, orders, and fulfilment are deferred.
+model CartItem {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId])
+  @@index([productId])
+}
+
+model BrandFollow {
+  userId    String
+  brandId   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand     Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@id([userId, brandId])
+  @@index([brandId])
+}
+
+model ModerationItem {
+  id             String   @id
+  targetType     ModerationTargetType
+  targetId       String
+  reporterUserId String?
+  reporter       User?    @relation("ModerationReporter", fields: [reporterUserId], references: [id], onDelete: SetNull)
+  reviewerUserId String?
+  reviewer       User?    @relation("ModerationReviewer", fields: [reviewerUserId], references: [id], onDelete: SetNull)
+  status         ModerationStatus @default(OPEN)
+  reason         String
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  resolvedAt     DateTime?
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+  @@index([reporterUserId])
+  @@index([reviewerUserId])
 }

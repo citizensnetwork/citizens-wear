@@ -8,9 +8,7 @@ const nextConfig = {
   // `package-lock.json` elsewhere on the dev machine (e.g. in `$HOME`).
   // Next.js will otherwise warn: "We detected multiple lockfiles...".
   outputFileTracingRoot: path.join(__dirname, '../../'),
-  experimental: {
-    typedRoutes: true,
-  },
+  typedRoutes: true,
   // Defence-in-depth HTTP security headers. These apply to every response
   // served by the Next.js app (static + dynamic). CSP is deliberately
   // conservative for Phase 2; it will be tightened again in Phase 9 when
