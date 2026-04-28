@@ -1,6 +1,13 @@
 # Citizens Wear — Social commerce vertical slice
 
-Status: implementation model for the first social-commerce slice.
+Status: product direction and historical implementation model for the first
+social-commerce slice.
+
+PR #8 repair note: the first DB/API implementation described here was superseded
+by the coherent Phase 3-6 implementation on `main`. Treat this document as
+product, role, UX, and guardrail context. The active runtime contract is the
+mainline WearStore API used by `/compose`, `/feed`, post detail, search, stories,
+messages, likes, comments, and saves.
 
 This document records the product shape for the Citizens Wear overhaul so the
 first implementation steps do not live only in chat. It complements the rollout

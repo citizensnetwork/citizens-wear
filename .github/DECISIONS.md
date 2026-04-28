@@ -1,5 +1,12 @@
 # Citizens Wear Decisions
 
+## PR #8 Posting Repair
+
+- PR #8 resolves the bad merge in favor of the coherent `origin/main` Phase 3-6 DB, homepage, and shell implementation. The active posting contract uses `Post.authorId`, `Post.body`, `taggedProductIds`, `likes`, `comments`, `saves`, stories, reports, blocks, and conversations.
+- The social-commerce foundation batch below is retained as product and risk history, but its divergent DB API (`authorUserId`, `caption`, `PostEngagementRepo`, cart intent repos, brand follow repos, and moderation queue repos) is not the current runtime contract.
+- Chore branch conflict repairs should prefer the mainline app routes/actions when a branch contains duplicate generations of the same WearStore surface. Reintroduce older slice concepts only as deliberate new work with migration/tests, not as merge-conflict residue.
+- The repair restores posting visibility by making `apps/web/src/lib/actions.ts`, `apps/web/src/app/compose/page.tsx`, and `@citizens-wear/db` agree on the same `posts.create({ authorId, body, taggedProductIds })` API.
+
 ## Social-Commerce Foundation Batch
 
 - Citizens Wear owns social state: posts, media references, product tags, comments, likes, saves, cart intent, brand follows, profile settings, and moderation state.
