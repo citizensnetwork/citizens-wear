@@ -1,8 +1,22 @@
 # Citizens Wear Project Status
 
-## Current Batch: PR #8 Posting Repair
+## Current Batch: Branch Reconciliation + Vision Capture (May 2026)
 
-Status: validated locally, ready to ship.
+Status: validated locally, pushed to `origin/chore/phase-2-se-poly-hardening`.
+
+Implemented:
+
+- **Branch reconciliation** — see [`.github/DECISIONS.md`](DECISIONS.md#branch-reconciliation--phase-4-local-rewrite-vs-canonical-lineage-may-2026). Local Phase-4 rewrite preserved on `origin/chore/phase-4-local-rewrite` @ `05d6407`; canonical `origin/chore/phase-2-se-poly-hardening` (Phases 3–6) wins as trunk for the merge to `main`.
+- **Security cherry-pick audit.** Of the 7 hardening items from `05d6407`, items 1–3 (brand-ownership, citizen-tag drop, http(s)-only media) were already present in canonical or implicit; items 4–6 (cart returnPath allowlist, `resolveModeration` Forbidden throw, `?as=admin` env-gate) are **not applicable** because cart, admin moderation page, and admin sign-in preset are not in canonical and will be re-introduced as deliberate Phase 7/8 work.
+- **`safeUrl` extracted** from `apps/web/src/lib/actions.ts` to a new `apps/web/src/lib/validators.ts` with **10 unit tests** in `validators.test.ts` (rejects `javascript:` / `data:` / `file:` / `vbscript:`, rejects URLs with embedded credentials, accepts http+https, canonicalises). Added the credential-rejection guard the inline version was missing.
+- **Durable vision/idea/roadmap docs** authored so context survives conversation deletion:
+  - [`docs/VISION.md`](../docs/VISION.md) — mission, audience, ecosystem placement, differentiation moat, three-year north star, commerce model, trust posture, surface decisions.
+  - [`docs/IDEAS.md`](../docs/IDEAS.md) — Pinterest-style boards, full-body visualiser (deferred), Citizen Suggestions board, NGO merch drives, Product Story label, Monthly Highlights, etc, each with feasibility / clutter / persona notes.
+  - [`docs/ROADMAP.md`](../docs/ROADMAP.md) — phase-by-phase plan (Shipped → Phase 7 in flight → Phase 8 → Phase 9 → Phase 10+) and the four ADRs to author next (0007 ZA payments, 0008 feed recycling, 0009 multi-brand cart, 0010 NGO drives).
+
+## Previous Batch: PR #8 Posting Repair
+
+Status: shipped on `origin/chore/phase-2-se-poly-hardening` @ `547efdd`.
 
 Implemented:
 
@@ -26,7 +40,20 @@ Implemented:
 
 ## Latest Validation
 
-Run from workspace root on Windows PowerShell.
+Run from workspace root on Windows PowerShell. (Reconciliation + validators batch — May 2026)
+
+```
+pnpm typecheck   → 0 errors (7 tasks ok)
+pnpm test        → 111 passing
+                   - @citizens-wear/connect-client (3 files, 38 tests)
+                   - @citizens-wear/db             (3 files, 55 tests)
+                   - @citizens-wear/web            (3 files, 18 tests — store, connect, validators)
+npx next lint --dir src → 0 warnings/errors
+Architect review (SE: Architect subagent) → 0 Must-fix; Should-fix items 1–3 + ADR-forward-ref fix applied; nice-to-haves 4, 6 noted; Phase-7 design notes 7–11 captured in ROADMAP.
+Security review (SE: Security subagent) → 0 Critical / 0 High; Medium M2 + Low L1 + Low L2 applied (trim, CRLF + control-char + non-http(s)-scheme + backslash-canonicalisation tests); M1 (coverage allow-list → deny-list) and I2 (ESLint rule against `fetch(safeUrl(...))`) deferred to Phase-7 unfurl batch.
+```
+
+## Previous Validation
 
 - `pnpm --filter @citizens-wear/db typecheck`: passed.
 - `pnpm typecheck`: passed.

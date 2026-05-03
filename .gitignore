@@ -33,3 +33,7 @@ coverage/
 
 # Next.js
 # Note: next-env.d.ts is committed so `typecheck` works without a prior `next build`.
+
+# Legacy reference repo, not part of this build
+Old version/
+

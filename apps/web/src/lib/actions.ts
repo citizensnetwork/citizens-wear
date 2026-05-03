@@ -7,6 +7,7 @@ import { getSession } from './session';
 import { getConnectClient } from './connect';
 import { getRealtimeBus } from './realtime';
 import { getWearStore } from './store';
+import { safeUrl } from './validators';
 
 /**
  * Server actions for the follow graph, post composer, likes, comments, and
@@ -195,17 +196,6 @@ const VALID_REPORT_REASONS: readonly ReportReason[] = [
   'illegal',
   'other',
 ];
-
-function safeUrl(raw: string): string | null {
-  if (!raw) return null;
-  try {
-    const u = new URL(raw);
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-    return u.toString();
-  } catch {
-    return null;
-  }
-}
 
 export async function createStory(formData: FormData): Promise<void> {
   const session = await getSession();

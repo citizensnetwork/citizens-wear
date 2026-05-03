@@ -12,7 +12,7 @@ export default defineConfig({
       // helpers depend on the App Router runtime (`next/headers`,
       // `next/navigation`, `cookies()`) and are exercised end-to-end by
       // Playwright in Phase 4+.
-      include: ['src/lib/store.ts', 'src/lib/connect.ts'],
+      include: ['src/lib/store.ts', 'src/lib/connect.ts', 'src/lib/validators.ts'],
       thresholds: {
         lines: 90,
         functions: 90,
