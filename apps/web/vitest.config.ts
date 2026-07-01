@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -23,7 +24,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': new URL('./src/', import.meta.url).pathname,
+      // fileURLToPath (not URL.pathname) so the `@` alias resolves on Windows
+      // too — pathname yields a leading-slash path like `/C:/…` that fs can't
+      // resolve. Production route handlers under src/app import via `@`.
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
 });
