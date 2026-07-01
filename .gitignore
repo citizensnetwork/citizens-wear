@@ -37,3 +37,6 @@ coverage/
 # Legacy reference repo, not part of this build
 Old version/
 
+# Claude Code local session/offload notes (never committed)
+.claude/
+
