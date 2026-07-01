@@ -41,7 +41,16 @@ function deriveHandle(user: User): string {
   return cleaned || `user_${user.id.slice(0, 8)}`;
 }
 
-function toConnectUser(user: User): ConnectUser {
+/**
+ * Display identity (handle preference + name + avatar) from a validated auth
+ * user. Shared with the `/api/*` route context so `POST /api/me/hydrate` can
+ * write the `wear.users` mirror from the same derivation the session uses.
+ */
+export function identityFromAuthUser(user: User): {
+  handle: string;
+  displayName: string;
+  avatarUrl: string | null;
+} {
   const meta = user.user_metadata ?? {};
   const displayName =
     (typeof meta.full_name === 'string' && meta.full_name) ||
@@ -52,12 +61,17 @@ function toConnectUser(user: User): ConnectUser {
     (typeof meta.avatar_url === 'string' && meta.avatar_url) ||
     (typeof meta.picture === 'string' && meta.picture) ||
     null;
+  return { handle: deriveHandle(user), displayName, avatarUrl };
+}
+
+function toConnectUser(user: User): ConnectUser {
+  const identity = identityFromAuthUser(user);
   return {
     id: user.id,
-    handle: deriveHandle(user),
-    displayName,
+    handle: identity.handle,
+    displayName: identity.displayName,
     email: user.email ?? null,
-    avatarUrl,
+    avatarUrl: identity.avatarUrl,
     createdAt: user.created_at ?? new Date().toISOString(),
   };
 }

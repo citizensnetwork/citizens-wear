@@ -6,7 +6,7 @@ import { getSupabaseEnv } from '@/lib/supabase/env';
 import { createWearServerClient } from '@/lib/supabase/server';
 import { createSupabaseWearStore } from '@/lib/supabase-wear-store';
 import { getWearStore } from '@/lib/store';
-import { getSession } from '@/lib/session';
+import { getSession, identityFromAuthUser } from '@/lib/session';
 
 /**
  * Request context for the Wear `/api/*` surface — the contract the standalone
@@ -24,10 +24,22 @@ import { getSession } from '@/lib/session';
  * With no Supabase env (local dev / tests / preview) it degrades to the seeded
  * in-memory store, resolving the user from the cookie session if present.
  */
+/**
+ * Display identity carried by the caller's session (Google OAuth metadata) —
+ * the payload `POST /api/me/hydrate` writes into the `wear.users` mirror.
+ */
+export interface SessionIdentity {
+  readonly handle: string;
+  readonly displayName: string;
+  readonly avatarUrl: string | null;
+}
+
 export interface RouteContext {
   readonly store: WearStore;
   /** The authenticated user's id, or `null` for an anonymous caller. */
   readonly userId: string | null;
+  /** Session-derived display identity (null for anonymous callers). */
+  readonly identity: SessionIdentity | null;
 }
 
 function bearerToken(req: Request): string | null {
@@ -37,12 +49,27 @@ function bearerToken(req: Request): string | null {
   return match ? match[1]!.trim() : null;
 }
 
+function identityFromWearSession(session: {
+  user: { handle: string; displayName: string; avatarUrl: string | null };
+} | null): SessionIdentity | null {
+  if (!session) return null;
+  return {
+    handle: session.user.handle,
+    displayName: session.user.displayName,
+    avatarUrl: session.user.avatarUrl,
+  };
+}
+
 export async function getRouteContext(req: Request): Promise<RouteContext> {
   const env = getSupabaseEnv();
   if (!env) {
     // Dev/test/preview: seeded in-memory store; user (if any) via cookie.
     const session = await getSession();
-    return { store: getWearStore(), userId: session?.user.id ?? null };
+    return {
+      store: getWearStore(),
+      userId: session?.user.id ?? null,
+      identity: identityFromWearSession(session),
+    };
   }
 
   const token = bearerToken(req);
@@ -60,13 +87,18 @@ export async function getRouteContext(req: Request): Promise<RouteContext> {
     return {
       store: createSupabaseWearStore(client as unknown as SupabaseClient),
       userId: user?.id ?? null,
+      identity: user ? identityFromAuthUser(user) : null,
     };
   }
 
   // Same-origin (cookies): the wear-scoped server client already carries them.
   const client = await createWearServerClient();
   const session = await getSession();
-  return { store: createSupabaseWearStore(client), userId: session?.user.id ?? null };
+  return {
+    store: createSupabaseWearStore(client),
+    userId: session?.user.id ?? null,
+    identity: identityFromWearSession(session),
+  };
 }
 
 /** Thrown by route handlers to short-circuit with a specific HTTP status. */
