@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getConnectClient } from './connect';
+import { __resetConnectClientForTests, getConnectClient } from './connect';
 
 describe('getConnectClient', () => {
   it('returns a singleton ConnectClient that health-checks OK in mock mode', async () => {
@@ -10,5 +10,11 @@ describe('getConnectClient', () => {
     const status = await a.healthCheck();
     expect(status.ok).toBe(true);
     expect(status.mode).toBe('mock');
+  });
+
+  it('rebuilds the singleton after a test reset', () => {
+    const before = getConnectClient();
+    __resetConnectClientForTests();
+    expect(getConnectClient()).not.toBe(before);
   });
 });

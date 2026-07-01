@@ -1,5 +1,8 @@
 import type { WearStore } from '@citizens-wear/db';
 import { MemoryWearStore } from '@citizens-wear/db';
+import { getSupabaseEnv } from './supabase/env';
+import { createWearServerClient } from './supabase/server';
+import { createSupabaseWearStore } from './supabase-wear-store';
 
 /**
  * Single app-wide `WearStore` instance.
@@ -23,6 +26,52 @@ const FAR_FUTURE = '2099-12-31T23:59:59.000Z';
 export function getWearStore(): WearStore {
   if (!_store) {
     _store = new MemoryWearStore({
+      seedUsers: [
+        {
+          id: 'usr_001',
+          handle: 'hannah',
+          displayName: 'Hannah K.',
+          avatarUrl: null,
+          createdAt: '2026-01-10T12:00:00.000Z',
+          updatedAt: '2026-01-10T12:00:00.000Z',
+        },
+        {
+          id: 'usr_002',
+          handle: 'samuel',
+          displayName: 'Samuel O.',
+          avatarUrl: null,
+          createdAt: '2026-02-02T09:30:00.000Z',
+          updatedAt: '2026-02-02T09:30:00.000Z',
+        },
+      ],
+      seedBrands: [
+        {
+          id: 'brd_001',
+          slug: 'salt-and-light',
+          name: 'Salt & Light Apparel',
+          tagline: 'Wear the Kingdom.',
+          websiteUrl: 'https://example.test/salt-and-light',
+          logoUrl: null,
+          verified: true,
+          ownerUserId: 'usr_001',
+          connectContributorId: null,
+          createdAt: '2026-01-10T12:00:00.000Z',
+          updatedAt: '2026-01-10T12:00:00.000Z',
+        },
+        {
+          id: 'brd_002',
+          slug: 'cornerstone-co',
+          name: 'Cornerstone Co.',
+          tagline: 'Built on the Rock.',
+          websiteUrl: null,
+          logoUrl: null,
+          verified: false,
+          ownerUserId: 'usr_002',
+          connectContributorId: null,
+          createdAt: '2026-02-02T09:30:00.000Z',
+          updatedAt: '2026-02-02T09:30:00.000Z',
+        },
+      ],
       seedProfiles: [
         {
           userId: 'usr_001',
@@ -161,4 +210,21 @@ export function getWearStore(): WearStore {
 /** Test-only: reset the singleton so tests can seed a fresh store. */
 export function __resetWearStoreForTests(): void {
   _store = undefined;
+}
+
+/**
+ * Request-scoped `WearStore` accessor — the canonical way route handlers and
+ * server actions obtain the store.
+ *
+ * When the shared Supabase project is configured, this builds a fresh
+ * `SupabaseWearStore` **per request** from a `wear`-scoped server client that
+ * carries the caller's auth cookies, so every query is RLS-enforced as the
+ * signed-in user (never a process singleton — the identity differs per
+ * request). Without Supabase env (local dev / tests / preview) it returns the
+ * seeded in-memory singleton, so the app still renders public content.
+ */
+export async function getRequestWearStore(): Promise<WearStore> {
+  if (!getSupabaseEnv()) return getWearStore();
+  const client = await createWearServerClient();
+  return createSupabaseWearStore(client);
 }
