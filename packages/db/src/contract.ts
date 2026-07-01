@@ -12,6 +12,17 @@ import type { ConnectId, IsoDateTime } from '@citizens-wear/connect-client';
 
 export type { ConnectId, IsoDateTime };
 
+/** Cursor-paginated result shape, shared by the directory repos. */
+export interface PageParams {
+  readonly cursor?: string;
+  readonly limit?: number;
+}
+
+export interface Page<T> {
+  readonly items: readonly T[];
+  readonly nextCursor: string | null;
+}
+
 export type ProfileVisibility = 'public' | 'private';
 
 /** Kind of a profile page — user vs brand. Brand profiles are rendered from
@@ -471,8 +482,116 @@ export interface ReportRepo {
   listByReporter(reporterId: ConnectId): Promise<readonly Report[]>;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 3 — identity mirror + Wear-owned brands.
+//
+// These two repos are what `wear.*` owns that used to be resolved through
+// `connect-client` (users/brands/products). Identity is the shared Supabase
+// Auth `auth.users`; `wear.users` is a DISPLAY-SAFE mirror (no email/PII),
+// hydrated from each user's own session on first Wear sign-in. Brands are
+// Wear-owned, with an OPTIONAL ownership-verified link to a Connect
+// contributor (`connectContributorId`, value-ref to `public.profiles.id`).
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Display-safe mirror of a shared-auth citizen (`wear.users`). Deliberately
+ * carries no email or other PII — the row is public-SELECT under RLS and
+ * exists only so Wear can render post authors, followers, and brand owners
+ * without a cross-app read of `public.profiles` (SHARED_DB_CONTRACT R2).
+ */
+export interface WearUser {
+  readonly id: ConnectId;
+  readonly handle: string;
+  readonly displayName: string;
+  readonly avatarUrl: string | null;
+  readonly createdAt: IsoDateTime;
+  readonly updatedAt: IsoDateTime;
+}
+
+/**
+ * Upsert payload for the identity mirror. `handle` is a *preferred* handle
+ * (Connect issues none); the store guarantees global uniqueness, suffixing on
+ * collision. Only the user themselves may write their own mirror row (RLS
+ * `auth.uid() = id`).
+ */
+export interface UpsertUserInput {
+  readonly id: ConnectId;
+  readonly handle: string;
+  readonly displayName: string;
+  readonly avatarUrl?: string | null;
+}
+
+/** Read-through directory of Wear participants (the identity mirror). */
+export interface UserRepo {
+  getById(id: ConnectId): Promise<WearUser | null>;
+  getByHandle(handle: string): Promise<WearUser | null>;
+  search(query: string, params?: PageParams): Promise<Page<WearUser>>;
+  /**
+   * Hydrate or refresh the caller's own mirror row from their session. On
+   * first insert the store assigns a unique handle derived from `handle`
+   * (suffixing `-2`, `-3`, … on collision). An existing row keeps its handle
+   * and refreshes `displayName`/`avatarUrl`. Self-write only (RLS).
+   */
+  upsertFromSession(input: UpsertUserInput): Promise<WearUser>;
+}
+
+/**
+ * A Wear-owned Christian clothing brand (`wear.brands`). `connectContributorId`
+ * is a nullable value-ref to a Connect contributor (`public.profiles.id`), set
+ * only via an ownership-verified link flow — never a hard cross-schema FK.
+ */
+export interface WearBrand {
+  readonly id: ConnectId;
+  readonly slug: string;
+  readonly name: string;
+  readonly tagline: string | null;
+  readonly websiteUrl: string | null;
+  readonly logoUrl: string | null;
+  readonly verified: boolean;
+  readonly ownerUserId: ConnectId;
+  readonly connectContributorId: ConnectId | null;
+  readonly createdAt: IsoDateTime;
+  readonly updatedAt: IsoDateTime;
+}
+
+export interface CreateBrandInput {
+  readonly ownerId: ConnectId;
+  readonly slug: string;
+  readonly name: string;
+  readonly tagline?: string | null;
+  readonly websiteUrl?: string | null;
+  readonly logoUrl?: string | null;
+  readonly connectContributorId?: ConnectId | null;
+}
+
+export interface UpdateBrandInput {
+  readonly name?: string;
+  readonly tagline?: string | null;
+  readonly websiteUrl?: string | null;
+  readonly logoUrl?: string | null;
+  readonly connectContributorId?: ConnectId | null;
+}
+
+/** Repository for Wear-owned brands. */
+export interface BrandRepo {
+  getById(id: ConnectId): Promise<WearBrand | null>;
+  getBySlug(slug: string): Promise<WearBrand | null>;
+  listAll(params?: PageParams): Promise<Page<WearBrand>>;
+  listForOwner(ownerId: ConnectId): Promise<readonly WearBrand[]>;
+  search(query: string, params?: PageParams): Promise<Page<WearBrand>>;
+  /** Create a brand owned by `input.ownerId`. Slug must be unique. */
+  create(input: CreateBrandInput): Promise<WearBrand>;
+  /**
+   * Owner-scoped update. `ownerId` must match the brand's owner or the store
+   * throws `forbidden` — the app never lets one user edit another's brand.
+   */
+  update(brandId: ConnectId, ownerId: ConnectId, patch: UpdateBrandInput): Promise<WearBrand>;
+}
+
 /** The full Wear data surface. */
 export interface WearStore {
+  readonly users: UserRepo;
+  readonly brands: BrandRepo;
   readonly profiles: ProfileRepo;
   readonly follows: FollowRepo;
   readonly settings: SettingsRepo;

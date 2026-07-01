@@ -1,6 +1,7 @@
 import type {
   BlockEdge,
   BlockRepo,
+  BrandRepo,
   Comment,
   CommentLikeEdge,
   CommentRepo,
@@ -20,6 +21,8 @@ import type {
   LikeRepo,
   Message,
   MessageRepo,
+  Page,
+  PageParams,
   Post,
   PostMedia,
   PostRepo,
@@ -38,8 +41,11 @@ import type {
   StoryTrayEntry,
   StoryView,
   TrendingHashtag,
+  UserRepo,
   UserSettings,
+  WearBrand,
   WearStore,
+  WearUser,
 } from './contract';
 import { WearStoreError } from './contract';
 import { extractHashtags, normaliseHashtag } from './hashtags';
@@ -54,6 +60,8 @@ import { extractHashtags, normaliseHashtag } from './hashtags';
  */
 export interface MemoryWearStoreOptions {
   readonly now?: () => Date;
+  readonly seedUsers?: readonly WearUser[];
+  readonly seedBrands?: readonly WearBrand[];
   readonly seedProfiles?: readonly Profile[];
   readonly seedFollows?: readonly FollowEdge[];
   readonly seedSettings?: readonly UserSettings[];
@@ -70,6 +78,8 @@ export interface MemoryWearStoreOptions {
 }
 
 export class MemoryWearStore implements WearStore {
+  public readonly users: UserRepo;
+  public readonly brands: BrandRepo;
   public readonly profiles: ProfileRepo;
   public readonly follows: FollowRepo;
   public readonly settings: SettingsRepo;
@@ -85,6 +95,8 @@ export class MemoryWearStore implements WearStore {
   public readonly reports: ReportRepo;
 
   private readonly _now: () => Date;
+  private readonly _users = new Map<ConnectId, WearUser>();
+  private readonly _brands = new Map<ConnectId, WearBrand>();
   private readonly _profiles = new Map<ConnectId, Profile>();
   private readonly _settings = new Map<ConnectId, UserSettings>();
   /** Keyed by `${actorId}->${targetId}`. */
@@ -119,6 +131,12 @@ export class MemoryWearStore implements WearStore {
   public constructor(options: MemoryWearStoreOptions = {}) {
     this._now = options.now ?? (() => new Date());
 
+    for (const u of options.seedUsers ?? []) {
+      this._users.set(u.id, u);
+    }
+    for (const b of options.seedBrands ?? []) {
+      this._brands.set(b.id, b);
+    }
     for (const p of options.seedProfiles ?? []) {
       this._profiles.set(p.userId, p);
     }
@@ -153,6 +171,136 @@ export class MemoryWearStore implements WearStore {
     for (const b of options.seedBlocks ?? []) {
       this._blocks.set(edgeKey(b.actorId, b.targetId), b);
     }
+
+    this.users = {
+      getById: async (id) => this._users.get(id) ?? null,
+      getByHandle: async (handle) => {
+        const needle = handle.trim().toLowerCase();
+        for (const u of this._users.values()) {
+          if (u.handle.toLowerCase() === needle) return u;
+        }
+        return null;
+      },
+      search: async (query, params) => {
+        const q = query.trim().toLowerCase();
+        const all = [...this._users.values()].sort((a, b) => a.handle.localeCompare(b.handle));
+        const matches = q
+          ? all.filter(
+              (u) =>
+                u.handle.toLowerCase().includes(q) || u.displayName.toLowerCase().includes(q),
+            )
+          : all;
+        return paginateList(matches, params);
+      },
+      upsertFromSession: async (input) => {
+        const ts = this._now().toISOString();
+        const existing = this._users.get(input.id);
+        if (existing) {
+          const next: WearUser = {
+            ...existing,
+            displayName: input.displayName,
+            avatarUrl: input.avatarUrl ?? null,
+            updatedAt: ts,
+          };
+          this._users.set(input.id, next);
+          return next;
+        }
+        const handle = this._uniqueHandle(input.handle, input.id);
+        const created: WearUser = {
+          id: input.id,
+          handle,
+          displayName: input.displayName,
+          avatarUrl: input.avatarUrl ?? null,
+          createdAt: ts,
+          updatedAt: ts,
+        };
+        this._users.set(input.id, created);
+        return created;
+      },
+    };
+
+    this.brands = {
+      getById: async (id) => this._brands.get(id) ?? null,
+      getBySlug: async (slug) => {
+        const needle = slug.trim().toLowerCase();
+        for (const b of this._brands.values()) {
+          if (b.slug.toLowerCase() === needle) return b;
+        }
+        return null;
+      },
+      listAll: async (params) => {
+        const all = [...this._brands.values()].sort(
+          (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt),
+        );
+        return paginateList(all, params);
+      },
+      listForOwner: async (ownerId) =>
+        [...this._brands.values()]
+          .filter((b) => b.ownerUserId === ownerId)
+          .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)),
+      search: async (query, params) => {
+        const q = query.trim().toLowerCase();
+        const all = [...this._brands.values()].sort((a, b) => a.name.localeCompare(b.name));
+        const matches = q
+          ? all.filter(
+              (b) =>
+                b.name.toLowerCase().includes(q) ||
+                b.slug.toLowerCase().includes(q) ||
+                (b.tagline ?? '').toLowerCase().includes(q),
+            )
+          : all;
+        return paginateList(matches, params);
+      },
+      create: async (input) => {
+        const slug = input.slug.trim().toLowerCase();
+        if (!slug) {
+          throw new WearStoreError('invalid_slug', 'Brand slug must not be empty.');
+        }
+        for (const b of this._brands.values()) {
+          if (b.slug.toLowerCase() === slug) {
+            throw new WearStoreError('slug_taken', `Brand slug ${slug} is already in use.`);
+          }
+        }
+        const ts = this._now().toISOString();
+        const created: WearBrand = {
+          id: this._id('brd'),
+          slug,
+          name: input.name,
+          tagline: input.tagline ?? null,
+          websiteUrl: input.websiteUrl ?? null,
+          logoUrl: input.logoUrl ?? null,
+          verified: false,
+          ownerUserId: input.ownerId,
+          connectContributorId: input.connectContributorId ?? null,
+          createdAt: ts,
+          updatedAt: ts,
+        };
+        this._brands.set(created.id, created);
+        return created;
+      },
+      update: async (brandId, ownerId, patch) => {
+        const current = this._brands.get(brandId);
+        if (!current) {
+          throw new WearStoreError('brand_not_found', `Unknown brand ${brandId}.`);
+        }
+        if (current.ownerUserId !== ownerId) {
+          throw new WearStoreError('forbidden', 'Only the owner can edit this brand.');
+        }
+        const next: WearBrand = {
+          ...current,
+          ...(patch.name !== undefined ? { name: patch.name } : {}),
+          ...(patch.tagline !== undefined ? { tagline: patch.tagline } : {}),
+          ...(patch.websiteUrl !== undefined ? { websiteUrl: patch.websiteUrl } : {}),
+          ...(patch.logoUrl !== undefined ? { logoUrl: patch.logoUrl } : {}),
+          ...(patch.connectContributorId !== undefined
+            ? { connectContributorId: patch.connectContributorId }
+            : {}),
+          updatedAt: this._now().toISOString(),
+        };
+        this._brands.set(brandId, next);
+        return next;
+      },
+    };
 
     this.profiles = {
       get: async (userId) => this._profiles.get(userId) ?? null,
@@ -991,6 +1139,23 @@ export class MemoryWearStore implements WearStore {
     return this._blocks.has(edgeKey(a, b)) || this._blocks.has(edgeKey(b, a));
   }
 
+  /**
+   * Resolve a globally-unique handle for a new mirror row. Starts from the
+   * caller's preferred handle (already sanitised upstream) and suffixes
+   * `-2`, `-3`, … until free. Empty input falls back to `user_<id-prefix>`.
+   * Mirrors the retry-on-unique-violation behaviour of `SupabaseWearStore`.
+   */
+  private _uniqueHandle(preferred: string, id: ConnectId): string {
+    const base = preferred.trim().toLowerCase() || `user_${id.slice(0, 8)}`;
+    const taken = new Set<string>();
+    for (const u of this._users.values()) taken.add(u.handle.toLowerCase());
+    if (!taken.has(base)) return base;
+    for (let n = 2; ; n += 1) {
+      const candidate = `${base}-${n}`;
+      if (!taken.has(candidate)) return candidate;
+    }
+  }
+
   private _requireOwnedHighlight(highlightId: string, ownerId: ConnectId): StoryHighlight {
     const highlight = this._highlights.get(highlightId);
     if (!highlight) {
@@ -1063,6 +1228,25 @@ export class MemoryWearStore implements WearStore {
     }
     return { ...c, postIds };
   }
+}
+
+/**
+ * Cursor pagination for the directory repos (users/brands). The cursor is the
+ * numeric offset, matching the feed `_paginate` and the connect-client mock so
+ * callers see one consistent pagination contract.
+ */
+function paginateList<T>(items: readonly T[], params?: PageParams): Page<T> {
+  const limit = Math.max(1, Math.min(100, params?.limit ?? 20));
+  const start = params?.cursor ? Number.parseInt(params.cursor, 10) : 0;
+  if (Number.isNaN(start) || start < 0) {
+    throw new WearStoreError('invalid_cursor', `Invalid cursor: ${params?.cursor ?? ''}`);
+  }
+  const slice = items.slice(start, start + limit);
+  const nextIndex = start + slice.length;
+  return {
+    items: slice,
+    nextCursor: nextIndex < items.length ? String(nextIndex) : null,
+  };
 }
 
 function edgeKey(actorId: ConnectId, targetId: ConnectId): string {
