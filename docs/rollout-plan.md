@@ -6,7 +6,11 @@
 
 - Instagram parity on the core social loop (feed, profile, follow, like, comment, DM, stories) — not a pixel clone.
 - No proprietary assets. Citizens Wear's visual identity is its own: 50/20/30 white/black/gold, a crown mark, minimalist type.
-- Citizens Connect is the source of truth for identity, brands, and products. Wear consumes it via `@citizens-wear/connect-client`.
+- ~~Citizens Connect is the source of truth for identity, brands, and products.~~ **Superseded
+  (ADR-0007 + ADR-0002 amendment, 2026-07):** identity is the **shared Citizens Supabase project**
+  (one `auth.users`); brands/posts/social data are **Wear-owned** in the `wear.*` schema. Connect
+  provides only the public ecosystem commons (contributors, categories) via
+  `@citizens-wear/connect-client` over its real `/api/v1`.
 - Tracking is personalization signals + product analytics only — no surveillance.
 
 ## Phases
@@ -42,12 +46,31 @@ Post-ARCH-GATE 1 review applied:
 - CodeQL scanning workflow (`.github/workflows/codeql.yml`) + Dependabot config (`.github/dependabot.yml`, grouped weekly PRs for npm and GitHub Actions).
 - CI gained a final `pnpm audit --audit-level moderate` gate.
 
-### Phase 3 — Real Citizens Connect wiring
-### Phase 3 — Real Citizens Connect wiring _(landed — ADR-0004)_
+### Phase 3 — Real Citizens Connect wiring _(landed — ADR-0004; superseded — see Phase 3R)_
 
 - `HttpConnectClient` implements the `ConnectClient` contract against a live HTTP service; `createConnectClient()` factory selects mock vs. live from `CONNECT_MODE` / `CONNECT_BASE_URL` / `CONNECT_API_KEY`.
 - SSO parity: Auth.js-shaped `/api/auth/callback/connect` route completes a Connect-issued token into the Wear session cookie; `/sign-in` mock form remains for local dev.
 - Idempotent, replay-safe webhook receiver at `/api/connect/webhook` (HMAC-SHA256 signature, ≤5-min skew, `x-connect-delivery-id` dedupe) that fans into `ConnectClient.events`.
+
+> **Note (2026-07):** this phase's OIDC bridge and webhook receiver were built against a Connect
+> API shape that never materialised (ADR-0002's own drift warning). Both were retired in Phase 3R.
+
+### Phase 3R — Shared-project reconciliation _(landed 2026-07 — ADR-0007 + ADR-0002 amendment)_
+
+The real Phase 3, executed against the Citizens ecosystem's shared-database contract
+(citizens-connect `docs/SHARED_DB_CONTRACT.md`, `docs/strategy/STEP3_WEAR_INTEGRATION_SCOPE.md`):
+
+- **Shared Supabase Auth** (Google OAuth, one `auth.users` across Connect → Vision → Wear)
+  replaced the mock-token session; `supabase-js` with `db.schema='wear'`, RLS as the only wall.
+- **`wear.*` schema** live on the shared project (Connect migrations 143–144): 22 tables,
+  full RLS, identity mirror (`wear.users`, display-safe, session-hydrated), Wear-owned brands.
+- **`SupabaseWearStore`** implements the full `WearStore` contract; `/api/*` route handlers
+  (Bearer-token or cookie auth) expose it as the app contract.
+- **Standalone HTML frontend** (`apps/web/src/frontend/`, esbuild-precompiled, Capacitor-ready)
+  replaced the RSC page tree; Next.js is **API-only**. Design per the Citizens Wear handoff.
+- **`connect-client` reconciled** to Connect's real `/api/v1`: contributors + categories
+  directories (env: `CONNECT_MODE` / `CONNECT_API_BASE_URL` / `CONNECT_API_KEY`); the
+  users/brands/products/OIDC surface and the webhook module were removed.
 
 ### Phase 4 — Posts & the feed _(landed — ADR-0004)_
 
