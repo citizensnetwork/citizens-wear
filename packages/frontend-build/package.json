@@ -1,0 +1,35 @@
+{
+  "name": "@citizens/frontend-build",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared static-frontend build pipeline for Citizens ecosystem apps — esbuild JSX precompile → hashed bundles → index.html rewrite → env-driven config.js. Host apps inject their own esbuild instance.",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node --check index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint \"index.js\" \"test/**/*.ts\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "peerDependencies": {
+    "esbuild": ">=0.20.0"
+  },
+  "devDependencies": {
+    "@citizens-wear/config": "workspace:*",
+    "@types/node": "20.19.0",
+    "@typescript-eslint/eslint-plugin": "7.18.0",
+    "@typescript-eslint/parser": "7.18.0",
+    "@vitest/coverage-v8": "3.2.4",
+    "esbuild": "^0.25.0",
+    "eslint": "8.57.0",
+    "eslint-config-prettier": "9.1.0",
+    "typescript": "5.5.4",
+    "vitest": "3.2.4"
+  }
+}
